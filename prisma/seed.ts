@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Upsert para que el seed sea idempotente
-  const tenant = await prisma.tenants.upsert({
+  const tenant = await prisma.tenant.upsert({
     where: { name: 'Tenant 1' },
     update: {}, // No actualiza nada si ya existe
     create: {
@@ -14,9 +14,9 @@ async function main() {
   });
 
   // Poblar productos solo si el tenant es nuevo (no existía antes)
-  const productsCount = await prisma.products.count({ where: { tenant_id: tenant.id } });
+  const productsCount = await prisma.product.count({ where: { tenant_id: tenant.id } });
   if (productsCount === 0) {
-    await prisma.products.createMany({
+    await prisma.product.createMany({
       data: [
         { tenant_id: tenant.id, sku: 'SKU001', name: 'Producto 1', price_cost: 10, price_sale: 15, min_stock: 5 },
         { tenant_id: tenant.id, sku: 'SKU002', name: 'Producto 2', price_cost: 20, price_sale: 30, min_stock: 3 }
@@ -25,7 +25,7 @@ async function main() {
     });
   }
 
-  await prisma.roles.createMany({
+  await prisma.role.createMany({
     data: [
       { name: 'Admin', description: 'Administrator role' },
       { name: 'User', description: 'Regular user role' },
@@ -33,7 +33,7 @@ async function main() {
     skipDuplicates: true,
   });
 
-  await prisma.users.createMany({
+  await prisma.user.createMany({
     data: [
       {
         email: 'admin@localhost',

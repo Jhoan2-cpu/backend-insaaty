@@ -15,7 +15,7 @@ export class UsersService {
 
     // 2. Guardar usando TU esquema exacto
     // Nota: 'this.prisma.users' (en minúscula y plural porque así llamaste al modelo)
-    return await this.prisma.users.create({
+    return await this.prisma.user.create({
       data: {
         email: createUserDto.email,
         password_hash: hash, // Mapeamos password -> password_hash
@@ -27,27 +27,27 @@ export class UsersService {
   }
 
   async findOneByEmail(email: string) {
-    return await this.prisma.users.findUnique({
+    return await this.prisma.user.findUnique({
       where: { email },
     });
   }
 
   async findAll() {
-    return await this.prisma.users.findMany();
+    return await this.prisma.user.findMany();
   }
 
   async findOne(id: number) {
-    return await this.prisma.users.findUnique({ where: { id } });
+    return await this.prisma.user.findUnique({ where: { id } });
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
-    return await this.prisma.users.update({
+    return await this.prisma.user.update({
       where: { id },
       data: updateUserDto,
     });
   }
 
   async remove(id: number) {
-    return await this.prisma.users.delete({ where: { id } });
+    return await this.prisma.user.delete({ where: { id } });
   }
 }

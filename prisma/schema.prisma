@@ -4,10 +4,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
-model Users {
+model User {
   id        Int      @id @default(autoincrement())
   tenant_id Int
   role_id   Int
@@ -16,32 +16,35 @@ model Users {
   full_name String
   last_login DateTime?
   // Puedes agregar relaciones aquí
-  tenant    Tenants  @relation(fields: [tenant_id], references: [id])
-  role      Roles    @relation(fields: [role_id], references: [id])
-
-  inventory_transactions Inventory_Transactions[]
+  tenant    Tenant  @relation(fields: [tenant_id], references: [id])
+  role      Role    @relation(fields: [role_id], references: [id])
+  
+  inventory_transactions Inventory_Transaction[]
+  @@map("users")
 }
 
-model Tenants{
+model Tenant{
   id        Int      @id @default(autoincrement())
   name      String   @unique
   plan_type String
   is_active Boolean  @default(true)
   createdAt DateTime @default(now())
-  products Products[]
+  products Product[]
 
-  users    Users[]
-  inventory_transactions Inventory_Transactions[]
+  users    User[]
+  inventory_transactions Inventory_Transaction[]
+  @@map("tenants")
 }
 
-model Roles{
+model Role{
   id        Int      @id @default(autoincrement())
   name      String   @unique
   description String?
-  users     Users[]
+  users     User[]
+  @@map("roles")
 }
 
-model Products {
+model Product {
   id        Int      @id @default(autoincrement())
   tenant_id Int
   sku       String
@@ -51,12 +54,13 @@ model Products {
   price_sale Float
   min_stock  Int
   // Puedes agregar relaciones aquí
-  tenant    Tenants  @relation(fields: [tenant_id], references: [id])
+  tenant    Tenant  @relation(fields: [tenant_id], references: [id])
   @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
-  inventory_transactions Inventory_Transactions[]
+  inventory_transactions Inventory_Transaction[]
+  @@map("products")
 }
 
-model Inventory_Transactions {
+model Inventory_Transaction{
   id            Int      @id @default(autoincrement())
   tenant_id     Int
   product_id    Int
@@ -66,7 +70,8 @@ model Inventory_Transactions {
   reason        String?
   created_at   DateTime @default(now())
   // Puedes agregar relaciones aquí
-  tenant        Tenants  @relation(fields: [tenant_id], references: [id])
-  product       Products @relation(fields: [product_id], references: [id])
-  user          Users    @relation(fields: [user_id], references: [id])
+  tenant        Tenant  @relation(fields: [tenant_id], references: [id])
+  product       Product @relation(fields: [product_id], references: [id])
+  user          User    @relation(fields: [user_id], references: [id])
+  @@map("inventory_transactions")
 }
