@@ -12,7 +12,7 @@ model Users {
   tenant_id Int
   role_id   Int
   email     String   @unique
-  password_hash      String?
+  password_hash      String
   full_name String
   last_login DateTime?
   // Puedes agregar relaciones aquí

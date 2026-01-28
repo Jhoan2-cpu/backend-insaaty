@@ -32,6 +32,19 @@ async function main() {
     ],
     skipDuplicates: true,
   });
+
+  await prisma.users.createMany({
+    data: [
+      {
+        email: 'admin@localhost',
+        password_hash: '$2b$10$CwTycUXWue0Thq9StjUM0uJ8m5r6h6bZ8b6Z8b6Z8b6Z8b6Z8b6Z8b6', // "password" hashed
+        full_name: 'Admin User',
+        tenant_id: tenant.id,
+        role_id: 1,
+      },
+    ],
+    skipDuplicates: true,
+  });
 }
 
 main()

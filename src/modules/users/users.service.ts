@@ -1,26 +1,53 @@
 import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+// import { Prisma } from '@prisma/client';
+import { PrismaService } from 'src/prisma.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  create(createUserDto: CreateUserDto) {
-    return 'This action adds a new user';
+  constructor(private prisma: PrismaService) {}
+
+  async create(createUserDto: CreateUserDto) {
+    // 1. Encriptar la contraseña
+    const hash = await bcrypt.hash(createUserDto.password, 10);
+
+    // 2. Guardar usando TU esquema exacto
+    // Nota: 'this.prisma.users' (en minúscula y plural porque así llamaste al modelo)
+    return await this.prisma.users.create({
+      data: {
+        email: createUserDto.email,
+        password_hash: hash, // Mapeamos password -> password_hash
+        full_name: createUserDto.fullName, // Mapeamos fullName -> full_name
+        tenant_id: createUserDto.tenantId,
+        role_id: createUserDto.roleId, // El ID del rol (ej: 1)
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all users`;
+  async findOneByEmail(email: string) {
+    return await this.prisma.users.findUnique({
+      where: { email },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findAll() {
+    return await this.prisma.users.findMany();
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async findOne(id: number) {
+    return await this.prisma.users.findUnique({ where: { id } });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    return await this.prisma.users.update({
+      where: { id },
+      data: updateUserDto,
+    });
+  }
+
+  async remove(id: number) {
+    return await this.prisma.users.delete({ where: { id } });
   }
 }
