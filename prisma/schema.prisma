@@ -7,20 +7,66 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Users {
   id        Int      @id @default(autoincrement())
+  tenant_id Int
+  role_id   Int
   email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  password_hash      String?
+  full_name String
+  last_login DateTime?
   // Puedes agregar relaciones aquí
+  tenant    Tenants  @relation(fields: [tenant_id], references: [id])
+  role      Roles    @relation(fields: [role_id], references: [id])
+
+  inventory_transactions Inventory_Transactions[]
 }
 
-model Item {
+model Tenants{
   id        Int      @id @default(autoincrement())
-  name      String
-  price     Float
+  name      String   @unique
+  plan_type String
+  is_active Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  products Products[]
+
+  users    Users[]
+  inventory_transactions Inventory_Transactions[]
+}
+
+model Roles{
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  description String?
+  users     Users[]
+}
+
+model Products {
+  id        Int      @id @default(autoincrement())
+  tenant_id Int
+  sku       String
+  name      String
+  description String?
+  price_cost Float
+  price_sale Float
+  min_stock  Int
   // Puedes agregar relaciones aquí
+  tenant    Tenants  @relation(fields: [tenant_id], references: [id])
+  @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
+  inventory_transactions Inventory_Transactions[]
+}
+
+model Inventory_Transactions {
+  id            Int      @id @default(autoincrement())
+  tenant_id     Int
+  product_id    Int
+  user_id       Int
+  type          String
+  quantity      Int
+  reason        String?
+  created_at   DateTime @default(now())
+  // Puedes agregar relaciones aquí
+  tenant        Tenants  @relation(fields: [tenant_id], references: [id])
+  product       Products @relation(fields: [product_id], references: [id])
+  user          Users    @relation(fields: [user_id], references: [id])
 }
