@@ -21,7 +21,7 @@ model User {
 
   inventory_transactions InventoryTransaction[]
   refreshTokens          RefreshToken[]
-
+  
   @@map("users")
 }
 
