@@ -4,88 +4,95 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  tenant_id Int
-  role_id   Int
-  email     String   @unique
-  password_hash      String
-  full_name String
-  last_login DateTime?
+  id            Int       @id @default(autoincrement())
+  tenant_id     Int
+  role_id       Int
+  email         String    @unique
+  password_hash String
+  full_name     String
+  last_login    DateTime?
   // Puedes agregar relaciones aquí
-  tenant    Tenant  @relation(fields: [tenant_id], references: [id])
-  role      Role    @relation(fields: [role_id], references: [id])
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id])
+  role          Role      @relation(fields: [role_id], references: [id])
 
-  inventory_transactions Inventory_Transaction[]
+  inventory_transactions InventoryTransaction[]
+  refreshTokens          RefreshToken[]
+
   @@map("users")
 }
 
-model Refresh_Token {
-  id        Int      @id @default(autoincrement())
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
   token_hash String
-  user_id  Int
+  user_id    Int
   is_revoked Boolean  @default(false)
   expires_at DateTime
   created_at DateTime @default(now())
-  
-  user      User    @relation(fields: [user_id], references: [id])
+
+  user User @relation(fields: [user_id], references: [id])
+
   @@map("refresh_tokens")
 }
 
-model Tenant{
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  plan_type PlanType @default(FREE)
-  is_active Boolean  @default(true)
-  createdAt DateTime @default(now())
-  products Product[]
-  
-  users    User[]
-  inventory_transactions Inventory_Transaction[]
+model Tenant {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  plan_type PlanType  @default(FREE)
+  is_active Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  products  Product[]
+
+  users                  User[]
+  inventory_transactions InventoryTransaction[]
+
   @@map("tenants")
 }
 
-model Role{
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
   description String?
-  users     User[]
+  users       User[]
+
   @@map("roles")
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  tenant_id Int
-  sku       String
-  name      String
-  description String?
-  price_cost Decimal @db.Decimal(10, 2)
-  price_sale Decimal @db.Decimal(10, 2)
-  min_stock  Int @default(0)
-  current_stock Int    @default(0)
+  id                     Int                    @id @default(autoincrement())
+  tenant_id              Int
+  sku                    String
+  name                   String
+  description            String?
+  price_cost             Decimal                @db.Decimal(10, 2)
+  price_sale             Decimal                @db.Decimal(10, 2)
+  min_stock              Int                    @default(0)
+  current_stock          Int                    @default(0)
   // Puedes agregar relaciones aquí
-  tenant    Tenant  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  inventory_transactions Inventory_Transaction[]
+  tenant                 Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  inventory_transactions InventoryTransaction[]
+
   @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
   @@map("products")
 }
 
-model Inventory_Transaction{
-  id            Int      @id @default(autoincrement())
-  tenant_id     Int
-  product_id    Int
-  user_id       Int
-  type          TransactionType //Uso de Enum (In, Out, Adjustment)
-  quantity      Int
-  reason        String?
-  created_at   DateTime @default(now())
+model InventoryTransaction {
+  id         Int             @id @default(autoincrement())
+  tenant_id  Int
+  product_id Int
+  user_id    Int
+  type       TransactionType //Uso de Enum (In, Out, Adjustment)
+  quantity   Int
+  reason     String?
+  created_at DateTime        @default(now())
   // Puedes agregar relaciones aquí
-  tenant        Tenant  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product       Product @relation(fields: [product_id], references: [id])
-  user          User    @relation(fields: [user_id], references: [id])
+  tenant     Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product    Product         @relation(fields: [product_id], references: [id])
+  user       User            @relation(fields: [user_id], references: [id])
+
   @@map("inventory_transactions")
 }
 
