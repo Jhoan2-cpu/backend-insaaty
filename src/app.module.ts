@@ -5,10 +5,17 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PrismaService } from './prisma.service';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
+import { APP_GUARD } from '@nestjs/core'; // <--- Importante
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'; // <--- Importante
 
 @Module({
   imports: [AuthModule, TenantsModule, UsersModule],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService, PrismaService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // <--- Esto protege TODA tu app
+    },
+  ],
 })
 export class AppModule {}

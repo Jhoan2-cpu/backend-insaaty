@@ -27,7 +27,7 @@ export class UsersController {
   }
 
   //Bloquea el endpoint para usuarios no autenticados
-  @UseGuards(AuthGuard('jwt'))
+  // @UseGuards(AuthGuard('jwt'))
   @Get()
   findAll(@Request() req) {
     // req.user.tenantId viene del JWT

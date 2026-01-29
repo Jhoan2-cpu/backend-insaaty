@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { Public } from './public.decorator';
 
 class LoginDto {
   email: string;
@@ -17,6 +18,7 @@ class LoginDto {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
   
+  @Public()
   @HttpCode(HttpStatus.OK)
   @Post('login')
   async signIn(@Body() signInDto: LoginDto) {
@@ -26,6 +28,7 @@ export class AuthController {
   }
 
   // Endpoint para cuando el Access Token caduca
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() body: { refresh_token: string }) {
