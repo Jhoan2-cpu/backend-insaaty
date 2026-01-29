@@ -8,7 +8,7 @@ async function main() {
     update: {}, // No actualiza nada si ya existe
     create: {
       name: 'Tenant 1',
-      plan_type: 'basic',
+      plan_type: 'FREE',
       is_active: true,
     },
   });
