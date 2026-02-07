@@ -38,6 +38,43 @@ export class UsersService {
     });
   }
 
+  async findAllByTenantPaginated(tenantId: number, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { tenant_id: tenantId },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          email: true,
+          full_name: true,
+          role_id: true,
+          tenant_id: true,
+          last_login: true,
+          // Excluir password_hash por seguridad
+        },
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.user.count({
+        where: { tenant_id: tenantId },
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
   async findAll() {
     return await this.prisma.user.findMany();
   }
@@ -47,9 +84,28 @@ export class UsersService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
+    // Mapear campos del DTO a campos de la base de datos
+    const dataToUpdate: any = {};
+
+    if (updateUserDto.email !== undefined) {
+      dataToUpdate.email = updateUserDto.email;
+    }
+    if (updateUserDto.fullName !== undefined) {
+      dataToUpdate.full_name = updateUserDto.fullName;
+    }
+    if (updateUserDto.password !== undefined) {
+      dataToUpdate.password_hash = await bcrypt.hash(updateUserDto.password, 10);
+    }
+    if (updateUserDto.tenantId !== undefined) {
+      dataToUpdate.tenant_id = updateUserDto.tenantId;
+    }
+    if (updateUserDto.roleId !== undefined) {
+      dataToUpdate.role_id = updateUserDto.roleId;
+    }
+
     return await this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: dataToUpdate,
     });
   }
 

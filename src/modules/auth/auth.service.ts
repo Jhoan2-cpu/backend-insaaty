@@ -14,7 +14,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private prismaService: PrismaService,
-  ) {}
+  ) { }
 
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
@@ -137,19 +137,29 @@ export class AuthService {
     });
   }
 
-  async findAll() {
-    // lógica para obtener todos los usuarios
-  }
+  async logout(userId: number, refreshToken?: string) {
+    if (refreshToken) {
+      // Revocar solo el token especificado
+      const splitToken = refreshToken.split('.');
+      if (splitToken.length === 2) {
+        const [, uuid] = splitToken;
+        const userTokens = await this.prismaService.refreshToken.findMany({
+          where: { user_id: userId },
+        });
 
-  async findOne(id: number) {
-    // lógica para obtener un usuario por id
-  }
-
-  async update(id: number, updateUserDto: UpdateUserDto) {
-    // lógica para actualizar un usuario
-  }
-
-  async remove(id: number) {
-    // lógica para eliminar un usuario
+        for (const t of userTokens) {
+          const isMatch = await bcrypt.compare(uuid, t.token_hash);
+          if (isMatch) {
+            await this.prismaService.refreshToken.delete({ where: { id: t.id } });
+            return;
+          }
+        }
+      }
+    } else {
+      // Revocar TODOS los tokens del usuario (logout de todas las sesiones)
+      await this.prismaService.refreshToken.deleteMany({
+        where: { user_id: userId },
+      });
+    }
   }
 }

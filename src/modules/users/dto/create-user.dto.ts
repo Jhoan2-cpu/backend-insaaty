@@ -1,7 +1,22 @@
+import { IsEmail, IsNotEmpty, IsNumber, IsString, MinLength } from 'class-validator';
+
 export class CreateUserDto {
+  @IsEmail({}, { message: 'El email debe ser válido' })
+  @IsNotEmpty({ message: 'El email es requerido' })
   email: string;
-  password: string; // El front envía "password", aunque en DB sea "password_hash"
-  fullName: string; // El front envía "fullName"
-  tenantId: number; // OJO: Tu esquema usa Int, no String
-  roleId: number; // Necesario por tu relación obligatoria
+
+  @IsString()
+  @IsNotEmpty({ message: 'La contraseña es requerida' })
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  password: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'El nombre completo es requerido' })
+  fullName: string;
+
+  @IsNumber({}, { message: 'El tenantId debe ser un número' })
+  tenantId: number;
+
+  @IsNumber({}, { message: 'El roleId debe ser un número' })
+  roleId: number;
 }

@@ -6,14 +6,17 @@ import {
   Patch,
   Param,
   Delete,
-  UseGuards,
   Request,
+  Query,
+  ForbiddenException,
+  NotFoundException,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { AuthGuard } from '@nestjs/passport';
 import { Role } from '../auth/roles.enum';
 import { Roles } from '../auth/roles.decorator';
 import { Public } from '../auth/public.decorator';
@@ -22,36 +25,84 @@ import { Public } from '../auth/public.decorator';
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  //Bloquea el endpoint para usuarios no autenticados
   @Public()
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
-    console.log('Creating user with data:', createUserDto);
     return this.usersService.create(createUserDto);
   }
 
-  //Bloquea el endpoint para usuarios no autenticados
-  // @UseGuards(AuthGuard('jwt'))
-  @Roles(Role.ADMIN) // Solo Admins pueden acceder
+  @Roles(Role.ADMIN)
   @Get()
-  findAll(@Request() req) {
-    // req.user.tenantId viene del JWT
-    console.log('Tenant ID from JWT:', req.user.tenantId);
-    return this.usersService.findAllByTenant(req.user.tenantId);
+  findAll(
+    @Request() req,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ) {
+    // Validar límites de paginación
+    const safeLimit = Math.min(limit, 100); // Máximo 100 items por página
+    const safePage = Math.max(page, 1);
+
+    return this.usersService.findAllByTenantPaginated(
+      req.user.tenantId,
+      safePage,
+      safeLimit,
+    );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    const user = await this.usersService.findOne(id);
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Validación de tenant cruzado: solo puede ver usuarios de su tenant
+    if (user.tenant_id !== req.user.tenantId) {
+      throw new ForbiddenException('No tienes acceso a este usuario');
+    }
+
+    return user;
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req,
+  ) {
+    // Primero verificar que el usuario pertenece al mismo tenant
+    const existingUser = await this.usersService.findOne(id);
+
+    if (!existingUser) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (existingUser.tenant_id !== req.user.tenantId) {
+      throw new ForbiddenException('No tienes acceso a este usuario');
+    }
+
+    return this.usersService.update(id, updateUserDto);
   }
 
+  @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    const existingUser = await this.usersService.findOne(id);
+
+    if (!existingUser) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (existingUser.tenant_id !== req.user.tenantId) {
+      throw new ForbiddenException('No tienes acceso a este usuario');
+    }
+
+    // No permitir eliminarse a sí mismo
+    if (existingUser.id === req.user.id) {
+      throw new ForbiddenException('No puedes eliminarte a ti mismo');
+    }
+
+    return this.usersService.remove(id);
   }
 }
