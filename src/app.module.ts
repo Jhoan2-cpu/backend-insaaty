@@ -5,24 +5,26 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PrismaService } from './prisma.service';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
-import { APP_GUARD } from '@nestjs/core'; // <--- Importante
-import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'; // <--- Importante
-import { RolesGuard } from './modules/auth/roles.guard'; // <--- Importante
-
+import { ProductsModule } from './modules/products/products.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/roles.guard';
 
 @Module({
-  imports: [AuthModule, TenantsModule, UsersModule],
+  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule],
   controllers: [AppController],
-  providers: [AppService, PrismaService,
+  providers: [
+    AppService,
+    PrismaService,
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard, // <--- Esto protege TODA tu app
+      useClass: JwtAuthGuard,
     },
-    // Protección global con RolesGuard
     {
       provide: APP_GUARD,
-      useClass: RolesGuard, // <--- Esto protege TODA tu app con roles
+      useClass: RolesGuard,
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
+
