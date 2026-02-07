@@ -7,6 +7,8 @@ import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { APP_GUARD } from '@nestjs/core'; // <--- Importante
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'; // <--- Importante
+import { RolesGuard } from './modules/auth/roles.guard'; // <--- Importante
+
 
 @Module({
   imports: [AuthModule, TenantsModule, UsersModule],
@@ -15,6 +17,11 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'; // <--- Importante
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard, // <--- Esto protege TODA tu app
+    },
+    // Protección global con RolesGuard
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard, // <--- Esto protege TODA tu app con roles
     },
   ],
 })

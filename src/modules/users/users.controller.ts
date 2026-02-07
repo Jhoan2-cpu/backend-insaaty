@@ -14,12 +14,16 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { Role } from '../auth/roles.enum';
+import { Roles } from '../auth/roles.decorator';
+import { Public } from '../auth/public.decorator';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   //Bloquea el endpoint para usuarios no autenticados
+  @Public()
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     console.log('Creating user with data:', createUserDto);
@@ -28,6 +32,7 @@ export class UsersController {
 
   //Bloquea el endpoint para usuarios no autenticados
   // @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN) // Solo Admins pueden acceder
   @Get()
   findAll(@Request() req) {
     // req.user.tenantId viene del JWT

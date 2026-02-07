@@ -27,7 +27,6 @@ export class AuthController {
     return this.authService.login(user);
   }
 
-  // Endpoint para cuando el Access Token caduca
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
