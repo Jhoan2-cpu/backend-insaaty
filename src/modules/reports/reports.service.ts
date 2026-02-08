@@ -63,7 +63,7 @@ export class ReportsService {
         const orders = await this.prisma.order.findMany({
             where: whereClause,
             include: {
-                items: {
+                order_items: {
                     include: {
                         product: true,
                     },
@@ -92,7 +92,7 @@ export class ReportsService {
             dayData.orderCount += 1;
 
             // Calcular ganancia (price_sale - price_cost) * quantity
-            for (const item of order.items) {
+            for (const item of order.order_items) {
                 const profit = (Number(item.product.price_sale) - Number(item.product.price_cost)) * item.quantity;
                 dayData.profit += profit;
             }
@@ -123,7 +123,7 @@ export class ReportsService {
             },
         };
 
-        // Obtener items de pedidos completados
+        // Obtener order_items de pedidos completados
         const orderItems = await this.prisma.orderItem.findMany({
             where: whereClause,
             include: {
@@ -227,7 +227,7 @@ export class ReportsService {
                     status: { in: [OrderStatus.COMPLETED, OrderStatus.PROCESSING] },
                 },
                 include: {
-                    items: {
+                    order_items: {
                         include: {
                             product: true,
                         },
@@ -243,7 +243,7 @@ export class ReportsService {
         for (const order of allOrders) {
             totalSales += Number(order.total);
 
-            for (const item of order.items) {
+            for (const item of order.order_items) {
                 const profit = (Number(item.product.price_sale) - Number(item.product.price_cost)) * item.quantity;
                 totalProfit += profit;
             }

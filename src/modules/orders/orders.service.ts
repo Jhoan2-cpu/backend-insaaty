@@ -1,38 +1,26 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../../prisma.service';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
+import { PrismaService } from '../../prisma.service';
 import { OrderStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
-    constructor(private prisma: PrismaService) { }
+    constructor(private readonly prisma: PrismaService) { }
 
-    /**
-     * Genera un número de orden único (ORD-0001, ORD-0002, etc.)
-     */
-    private async generateOrderNumber(): Promise<string> {
-        const lastOrder = await this.prisma.order.findFirst({
-            orderBy: { id: 'desc' },
-            select: { order_number: true },
+    async getPendingCount(tenantId: number) {
+        return this.prisma.order.count({
+            where: {
+                tenant_id: tenantId,
+                status: OrderStatus.PENDING,
+            },
         });
-
-        if (!lastOrder) {
-            return 'ORD-0001';
-        }
-
-        const lastNumber = parseInt(lastOrder.order_number.split('-')[1]);
-        const newNumber = lastNumber + 1;
-        return `ORD-${newNumber.toString().padStart(4, '0')}`;
     }
 
-    /**
-     * Crear un nuevo pedido
-     */
-    async create(tenantId: number, createOrderDto: CreateOrderDto) {
+    async create(createOrderDto: CreateOrderDto, tenantId: number, userId: number) {
         const { items, notes } = createOrderDto;
 
-        // 1. Validar que todos los productos existan y pertenezcan al tenant
+        // 1. Validate items and stock
         const productIds = items.map((item) => item.product_id);
         const products = await this.prisma.product.findMany({
             where: {
@@ -42,245 +30,194 @@ export class OrdersService {
         });
 
         if (products.length !== productIds.length) {
-            throw new BadRequestException('Uno o más productos no existen o no pertenecen a tu empresa');
+            throw new BadRequestException('One or more products not found');
         }
 
-        // 2. Crear un mapa de productos para fácil acceso
         const productMap = new Map(products.map((p) => [p.id, p]));
+        let totalAmount = 0;
 
-        // 3. Calcular subtotales y total
-        let total = 0;
-        const orderItems = items.map((item) => {
-            const product = productMap.get(item.product_id)!;
-            const unitPrice = Number(product.price_sale);
-            const subtotal = unitPrice * item.quantity;
-            total += subtotal;
+        // Calculate total and validate stock
+        for (const item of items) {
+            const product = productMap.get(item.product_id);
+            if (!product) continue;
 
-            return {
-                product_id: item.product_id,
-                quantity: item.quantity,
-                unit_price: unitPrice,
-                subtotal: subtotal,
-            };
-        });
+            if (product.current_stock < item.quantity) {
+                throw new BadRequestException(`Insufficient stock for product ${product.name} (SKU: ${product.sku})`);
+            }
 
-        // 4. Generar número de orden
-        const orderNumber = await this.generateOrderNumber();
+            totalAmount += Number(product.price_sale) * item.quantity;
+        }
 
-        // 5. Crear el pedido con sus items en una transacción
-        const order = await this.prisma.order.create({
+        // 2. Generate Order Number
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        const orderNumber = `ORD-${dateStr}-${randomSuffix}`;
+
+        // 3. Create Order
+        return await this.prisma.order.create({
             data: {
                 order_number: orderNumber,
                 tenant_id: tenantId,
+                user_id: userId,
                 status: OrderStatus.PENDING,
-                total: total,
-                notes: notes || null,
-                items: {
-                    create: orderItems,
+                total: totalAmount,
+                notes: notes,
+                order_items: {
+                    create: items.map((item) => ({
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        unit_price: productMap.get(item.product_id)!.price_sale,
+                        subtotal: Number(productMap.get(item.product_id)!.price_sale) * item.quantity,
+                    })),
                 },
             },
             include: {
-                items: {
+                order_items: {
                     include: {
-                        product: {
-                            select: {
-                                id: true,
-                                name: true,
-                                sku: true,
-                                price_sale: true,
-                            },
-                        },
+                        product: true,
                     },
                 },
             },
         });
-
-        console.log(`✅ Pedido creado: ${orderNumber} con ${items.length} productos. Total: $${total}`);
-        return order;
     }
 
-    /**
-     * Listar pedidos con filtros y paginación
-     */
     async findAll(
         tenantId: number,
         page: number = 1,
         limit: number = 10,
         status?: OrderStatus,
+        search?: string,
     ) {
         const skip = (page - 1) * limit;
-
         const where: Prisma.OrderWhereInput = {
             tenant_id: tenantId,
             ...(status && { status }),
+            ...(search && {
+                OR: [
+                    { order_number: { contains: search, mode: 'insensitive' } },
+                    { user: { full_name: { contains: search, mode: 'insensitive' } } },
+                ],
+            }),
         };
 
-        const [orders, total] = await Promise.all([
+        const [total, data] = await Promise.all([
+            this.prisma.order.count({ where }),
             this.prisma.order.findMany({
                 where,
                 skip,
                 take: limit,
                 orderBy: { created_at: 'desc' },
                 include: {
-                    items: {
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
-                                    price_sale: true,
-                                },
-                            },
-                        },
+                    user: {
+                        select: { id: true, full_name: true, email: true },
                     },
+                    order_items: true,
                 },
             }),
-            this.prisma.order.count({ where }),
         ]);
 
         return {
-            data: orders,
+            data,
             meta: {
                 total,
                 page,
-                limit,
-                totalPages: Math.ceil(total / limit),
+                last_page: Math.ceil(total / limit),
             },
         };
     }
 
-    /**
-     * Obtener un pedido por ID
-     */
     async findOne(id: number, tenantId: number) {
         const order = await this.prisma.order.findUnique({
             where: { id },
             include: {
-                items: {
+                user: {
+                    select: { id: true, full_name: true, email: true },
+                },
+                order_items: {
                     include: {
-                        product: {
-                            select: {
-                                id: true,
-                                name: true,
-                                sku: true,
-                                price_sale: true,
-                                current_stock: true,
-                            },
-                        },
+                        product: true,
                     },
                 },
             },
         });
 
         if (!order || order.tenant_id !== tenantId) {
-            throw new NotFoundException('Pedido no encontrado');
+            throw new NotFoundException('Order not found');
         }
 
         return order;
     }
 
-    /**
-     * Actualizar el estado de un pedido (con lógica de stock)
-     */
-    async updateStatus(id: number, tenantId: number, updateStatusDto: UpdateOrderStatusDto) {
+    async update(id: number, updateOrderDto: UpdateOrderDto, tenantId: number) {
         const order = await this.findOne(id, tenantId);
-        const { status: newStatus } = updateStatusDto;
-        const oldStatus = order.status;
 
-        // No hacer nada si el estado es el mismo
-        if (oldStatus === newStatus) {
-            return order;
+        if (updateOrderDto.status && updateOrderDto.status !== order.status) {
+            return this.handleStatusChange(order, updateOrderDto.status, updateOrderDto.notes);
         }
 
-        // Lógica de actualización de stock según el cambio de estado
-        if (newStatus === OrderStatus.PROCESSING || newStatus === OrderStatus.COMPLETED) {
-            // Si va a PROCESSING o COMPLETED, reducir el stock
-            if (oldStatus === OrderStatus.PENDING) {
-                await this.reduceStock(order.items);
-            }
-        } else if (newStatus === OrderStatus.CANCELLED) {
-            // Si se cancela y ya se había procesado, restaurar el stock
-            if (oldStatus === OrderStatus.PROCESSING || oldStatus === OrderStatus.COMPLETED) {
-                await this.restoreStock(order.items);
-            }
-        }
-
-        // Actualizar el estado del pedido
-        const updatedOrder = await this.prisma.order.update({
+        return this.prisma.order.update({
             where: { id },
-            data: { status: newStatus },
-            include: {
-                items: {
-                    include: {
-                        product: {
-                            select: {
-                                id: true,
-                                name: true,
-                                sku: true,
-                                price_sale: true,
-                            },
-                        },
-                    },
-                },
+            data: {
+                notes: updateOrderDto.notes,
             },
         });
-
-        console.log(`✅ Pedido ${order.order_number}: ${oldStatus} → ${newStatus}`);
-        return updatedOrder;
     }
 
-    /**
-     * Reducir el stock de los productos del pedido
-     */
-    private async reduceStock(items: any[]) {
-        for (const item of items) {
-            const product = await this.prisma.product.findUnique({
-                where: { id: item.product_id },
-            });
+    private async handleStatusChange(order: any, newStatus: OrderStatus, newNotes?: string) {
+        const isNowCompleted = newStatus === OrderStatus.COMPLETED;
+        const wasCompleted = order.status === OrderStatus.COMPLETED;
+        const isNowCancelled = newStatus === OrderStatus.CANCELLED;
 
-            if (!product) {
-                throw new NotFoundException(`Producto ${item.product_id} no encontrado`);
+        return await this.prisma.$transaction(async (tx) => {
+            if (isNowCompleted && !wasCompleted) {
+                for (const item of order.order_items) {
+                    const product = await tx.product.findUnique({ where: { id: item.product_id } });
+                    // Ensure product exists and check stock again
+                    if (!product) {
+                        throw new BadRequestException(`Product \${item.product_id} not found`);
+                    }
+                    if (product.current_stock < item.quantity) {
+                        throw new BadRequestException(`Insufficient stock for product ${product.name} to complete order`);
+                    }
+
+                    await tx.product.update({
+                        where: { id: item.product_id },
+                        data: { current_stock: { decrement: item.quantity } },
+                    });
+                }
             }
 
-            if (product.current_stock < item.quantity) {
-                throw new BadRequestException(
-                    `Stock insuficiente para ${product.name}. Disponible: ${product.current_stock}, Requerido: ${item.quantity}`,
-                );
+            if (isNowCancelled && wasCompleted) {
+                for (const item of order.order_items) {
+                    await tx.product.update({
+                        where: { id: item.product_id },
+                        data: { current_stock: { increment: item.quantity } },
+                    });
+                }
             }
 
-            await this.prisma.product.update({
-                where: { id: item.product_id },
-                data: { current_stock: { decrement: item.quantity } },
+            return await tx.order.update({
+                where: { id: order.id },
+                data: {
+                    status: newStatus,
+                    notes: newNotes !== undefined ? newNotes : order.notes,
+                },
+                include: {
+                    order_items: { include: { product: true } }
+                }
             });
-
-            console.log(`📦 Stock reducido: ${product.name} (-${item.quantity})`);
-        }
+        });
     }
 
-    /**
-     * Restaurar el stock de los productos del pedido (cuando se cancela)
-     */
-    private async restoreStock(items: any[]) {
-        for (const item of items) {
-            await this.prisma.product.update({
-                where: { id: item.product_id },
-                data: { current_stock: { increment: item.quantity } },
-            });
+    async remove(id: number, tenantId: number) {
+        const order = await this.findOne(id, tenantId);
 
-            console.log(`📦 Stock restaurado: Producto ${item.product_id} (+${item.quantity})`);
+        if (order.status !== OrderStatus.PENDING) {
+            throw new BadRequestException('Only PENDING orders can be deleted');
         }
-    }
 
-    /**
-     * Obtener contador de pedidos pendientes (para badge)
-     */
-    async getPendingCount(tenantId: number): Promise<number> {
-        return this.prisma.order.count({
-            where: {
-                tenant_id: tenantId,
-                status: OrderStatus.PENDING,
-            },
+        return this.prisma.order.delete({
+            where: { id },
         });
     }
 }

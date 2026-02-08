@@ -2,18 +2,21 @@ import {
     Controller,
     Get,
     Post,
-    Patch,
     Body,
+    Patch,
     Param,
+    Delete,
+    UseGuards,
     Query,
     ParseIntPipe,
-    UseGuards,
-    Request,
+    Req,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { GetTenantId } from '../auth/decorators/get-tenant-id.decorator';
 import { OrderStatus } from '@prisma/client';
 
 @Controller('orders')
@@ -21,37 +24,53 @@ import { OrderStatus } from '@prisma/client';
 export class OrdersController {
     constructor(private readonly ordersService: OrdersService) { }
 
+    @Get('stats/pending-count')
+    getPendingCount(@GetTenantId() tenantId: number) {
+        return this.ordersService.getPendingCount(tenantId);
+    }
+
     @Post()
-    create(@Body() createOrderDto: CreateOrderDto, @Request() req) {
-        return this.ordersService.create(req.user.tenantId, createOrderDto);
+    create(
+        @Body() createOrderDto: CreateOrderDto,
+        @GetTenantId() tenantId: number,
+        @GetUser('id') userId: number,
+    ) {
+        return this.ordersService.create(createOrderDto, tenantId, userId);
     }
 
     @Get()
     findAll(
-        @Request() req,
-        @Query('page', ParseIntPipe) page: number = 1,
-        @Query('limit', ParseIntPipe) limit: number = 10,
+        @GetTenantId() tenantId: number,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
         @Query('status') status?: OrderStatus,
+        @Query('search') search?: string,
     ) {
-        return this.ordersService.findAll(req.user.tenantId, page, limit, status);
-    }
-
-    @Get('stats/pending-count')
-    getPendingCount(@Request() req) {
-        return this.ordersService.getPendingCount(req.user.tenantId);
+        return this.ordersService.findAll(
+            tenantId,
+            page ? +page : 1,
+            limit ? +limit : 10,
+            status,
+            search,
+        );
     }
 
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
-        return this.ordersService.findOne(id, req.user.tenantId);
+    findOne(@Param('id', ParseIntPipe) id: number, @GetTenantId() tenantId: number) {
+        return this.ordersService.findOne(id, tenantId);
     }
 
-    @Patch(':id/status')
-    updateStatus(
+    @Patch(':id')
+    update(
         @Param('id', ParseIntPipe) id: number,
-        @Request() req,
-        @Body() updateStatusDto: UpdateOrderStatusDto,
+        @Body() updateOrderDto: UpdateOrderDto,
+        @GetTenantId() tenantId: number,
     ) {
-        return this.ordersService.updateStatus(id, req.user.tenantId, updateStatusDto);
+        return this.ordersService.update(id, updateOrderDto, tenantId);
+    }
+
+    @Delete(':id')
+    remove(@Param('id', ParseIntPipe) id: number, @GetTenantId() tenantId: number) {
+        return this.ordersService.remove(id, tenantId);
     }
 }

@@ -21,6 +21,7 @@ model User {
 
   inventory_transactions InventoryTransaction[]
   refreshTokens          RefreshToken[]
+  orders                 Order[]
   
   @@map("users")
 }
@@ -128,15 +129,18 @@ model Order {
   id           Int         @id @default(autoincrement())
   order_number String      @unique
   tenant_id    Int
+  user_id      Int
   tenant       Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [user_id], references: [id])
   status       OrderStatus @default(PENDING)
   total        Decimal     @db.Decimal(10, 2)
   notes        String?     @db.Text
   created_at   DateTime    @default(now())
   updated_at   DateTime    @updatedAt
-  items        OrderItem[]
+  order_items  OrderItem[]
 
   @@index([tenant_id])
+  @@index([user_id])
   @@index([status])
   @@index([created_at])
   @@map("orders")
