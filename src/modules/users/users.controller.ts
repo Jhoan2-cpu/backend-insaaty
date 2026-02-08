@@ -25,6 +25,20 @@ import { Public } from '../auth/public.decorator';
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
+  @Get('profile')
+  getProfile(@Request() req) {
+    return this.usersService.findOne(req.user.id);
+  }
+
+  @Patch('profile')
+  updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    // Evitar que cambien su propio tenant_id o role_id a menos que sean admin (lógica compleja, por ahora bloqueamos)
+    // Para simplificar, solo permitimos cambiar nombre, email, password
+    delete updateUserDto.tenantId;
+    delete updateUserDto.roleId;
+    return this.usersService.update(req.user.id, updateUserDto);
+  }
+
   @Public()
   @Post()
   create(@Body() createUserDto: CreateUserDto) {

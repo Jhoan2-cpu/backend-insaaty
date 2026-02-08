@@ -9,6 +9,7 @@ import {
   Query,
   ParseIntPipe,
   DefaultValuePipe,
+  Request,
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -19,6 +20,15 @@ import { Role } from '../auth/roles.enum';
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) { }
+
+  @Roles(Role.ADMIN)
+  @Patch('settings')
+  updateSettings(@Request() req, @Body() updateTenantDto: UpdateTenantDto) {
+    // Solo permitir actualizar nombre (plan_type y is_active bloqueados para self-update)
+    delete updateTenantDto.plan_type;
+    delete updateTenantDto.is_active;
+    return this.tenantsService.update(req.user.tenantId, updateTenantDto);
+  }
 
   @Roles(Role.ADMIN)
   @Post()
