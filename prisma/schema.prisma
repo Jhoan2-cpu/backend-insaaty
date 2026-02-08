@@ -48,6 +48,7 @@ model Tenant {
 
   users                  User[]
   inventory_transactions InventoryTransaction[]
+  orders                 Order[]
 
   @@map("tenants")
 }
@@ -74,6 +75,7 @@ model Product {
   // Puedes agregar relaciones aquí
   tenant                 Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   inventory_transactions InventoryTransaction[]
+  order_items            OrderItem[]
 
   @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
   @@map("products")
@@ -107,4 +109,45 @@ enum PlanType {
   FREE
   BASIC
   PREMIUM
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  order_number String      @unique
+  tenant_id    Int
+  tenant       Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  status       OrderStatus @default(PENDING)
+  total        Decimal     @db.Decimal(10, 2)
+  notes        String?     @db.Text
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+  items        OrderItem[]
+
+  @@index([tenant_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  order_id   Int
+  order      Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product_id Int
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  quantity   Int
+  unit_price Decimal  @db.Decimal(10, 2)
+  subtotal   Decimal  @db.Decimal(10, 2)
+  created_at DateTime @default(now())
+
+  @@index([order_id])
+  @@index([product_id])
+  @@map("order_items")
 }

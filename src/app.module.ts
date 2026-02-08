@@ -11,9 +11,10 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/roles.guard';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
-  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule],
+  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule],
   controllers: [AppController],
   providers: [
     AppService,
