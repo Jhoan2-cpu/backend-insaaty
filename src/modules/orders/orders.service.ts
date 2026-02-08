@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderStatus, Prisma } from '@prisma/client';
@@ -51,7 +51,7 @@ export class OrdersService {
         // 3. Calcular subtotales y total
         let total = 0;
         const orderItems = items.map((item) => {
-            const product = productMap.get(item.product_id);
+            const product = productMap.get(item.product_id)!;
             const unitPrice = Number(product.price_sale);
             const subtotal = unitPrice * item.quantity;
             total += subtotal;

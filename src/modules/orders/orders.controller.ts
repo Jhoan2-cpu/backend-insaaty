@@ -8,12 +8,12 @@ import {
     Query,
     ParseIntPipe,
     UseGuards,
+    Request,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GetTenant } from '../auth/decorators/get-tenant.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrderStatus } from '@prisma/client';
 
 @Controller('orders')
@@ -22,36 +22,36 @@ export class OrdersController {
     constructor(private readonly ordersService: OrdersService) { }
 
     @Post()
-    create(@GetTenant() tenantId: number, @Body() createOrderDto: CreateOrderDto) {
-        return this.ordersService.create(tenantId, createOrderDto);
+    create(@Body() createOrderDto: CreateOrderDto, @Request() req) {
+        return this.ordersService.create(req.user.tenantId, createOrderDto);
     }
 
     @Get()
     findAll(
-        @GetTenant() tenantId: number,
+        @Request() req,
         @Query('page', ParseIntPipe) page: number = 1,
         @Query('limit', ParseIntPipe) limit: number = 10,
         @Query('status') status?: OrderStatus,
     ) {
-        return this.ordersService.findAll(tenantId, page, limit, status);
+        return this.ordersService.findAll(req.user.tenantId, page, limit, status);
     }
 
     @Get('stats/pending-count')
-    getPendingCount(@GetTenant() tenantId: number) {
-        return this.ordersService.getPendingCount(tenantId);
+    getPendingCount(@Request() req) {
+        return this.ordersService.getPendingCount(req.user.tenantId);
     }
 
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number, @GetTenant() tenantId: number) {
-        return this.ordersService.findOne(id, tenantId);
+    findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
+        return this.ordersService.findOne(id, req.user.tenantId);
     }
 
     @Patch(':id/status')
     updateStatus(
         @Param('id', ParseIntPipe) id: number,
-        @GetTenant() tenantId: number,
+        @Request() req,
         @Body() updateStatusDto: UpdateOrderStatusDto,
     ) {
-        return this.ordersService.updateStatus(id, tenantId, updateStatusDto);
+        return this.ordersService.updateStatus(id, req.user.tenantId, updateStatusDto);
     }
 }
