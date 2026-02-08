@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { PrismaService } from 'src/prisma.service';
@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid'; // Para generar el string único del refresh token
 // Añade RefreshToken a los imports
 import { RefreshToken } from '@prisma/client';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +29,53 @@ export class AuthService {
       return result;
     }
     return null;
+  }
+
+  async register(registerDto: RegisterDto) {
+    // 1. Verificar que el email no esté registrado
+    const existingUser = await this.usersService.findOneByEmail(registerDto.email);
+    if (existingUser) {
+      throw new BadRequestException('El email ya está registrado');
+    }
+
+    // 2. Crear el Tenant (empresa)
+    const tenant = await this.prismaService.tenant.create({
+      data: {
+        name: registerDto.business_name,
+        plan_type: 'FREE',
+        is_active: true,
+      },
+    });
+
+    // 3. Buscar o crear el rol "ADMIN"
+    let adminRole = await this.prismaService.role.findUnique({
+      where: { name: 'ADMIN' },
+    });
+
+    if (!adminRole) {
+      adminRole = await this.prismaService.role.create({
+        data: {
+          name: 'ADMIN',
+          description: 'Administrador del sistema',
+        },
+      });
+    }
+
+    // 4. Crear el usuario con contraseña hasheada
+    const passwordHash = await bcrypt.hash(registerDto.password, 10);
+
+    const user = await this.prismaService.user.create({
+      data: {
+        email: registerDto.email,
+        password_hash: passwordHash,
+        full_name: registerDto.full_name,
+        tenant_id: tenant.id,
+        role_id: adminRole.id,
+      },
+    });
+
+    // 5. Auto-login: generar tokens y retornarlos
+    return this.login(user);
   }
 
   async login(user: any) {

@@ -38,12 +38,8 @@ export class ProductsService {
         });
     }
 
-    async findAllByTenant(
-        tenantId: number,
-        page: number = 1,
-        limit: number = 10,
-        search?: string,
-    ) {
+    async findAllByTenant(tenantId: number, filters: { search?: string; stockStatus?: string; page?: number; limit?: number }) {
+        const { search, stockStatus, page = 1, limit = 10 } = filters;
         const skip = (page - 1) * limit;
 
         const where: any = { tenant_id: tenantId };
@@ -56,12 +52,28 @@ export class ProductsService {
             ];
         }
 
+        // Filtro por estado de stock
+        if (stockStatus && stockStatus !== 'all') {
+            if (stockStatus === 'out_of_stock') {
+                where.current_stock = { lte: 0 };
+            } else if (stockStatus === 'low_stock') {
+                // Stock bajo: mayor que 0 pero menor que min_stock
+                where.AND = [
+                    { current_stock: { gt: 0 } },
+                    { current_stock: { lt: this.prisma.product.fields.min_stock } }
+                ];
+            } else if (stockStatus === 'in_stock') {
+                // En stock: mayor o igual a min_stock
+                where.current_stock = { gte: this.prisma.product.fields.min_stock };
+            }
+        }
+
         const [data, total] = await Promise.all([
             this.prisma.product.findMany({
                 where,
                 skip,
                 take: limit,
-                orderBy: { id: 'asc' },
+                orderBy: { id: 'desc' },
             }),
             this.prisma.product.count({ where }),
         ]);

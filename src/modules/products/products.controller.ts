@@ -30,14 +30,18 @@ export class ProductsController {
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
         @Query('search') search?: string,
+        @Query('stockStatus') stockStatus?: string,
     ) {
         const safeLimit = Math.min(limit, 100);
         const safePage = Math.max(page, 1);
         return this.productsService.findAllByTenant(
             req.user.tenantId,
-            safePage,
-            safeLimit,
-            search,
+            {
+                page: safePage,
+                limit: safeLimit,
+                search,
+                stockStatus,
+            }
         );
     }
 
