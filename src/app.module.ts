@@ -13,9 +13,10 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/roles.guard';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
 
 @Module({
-  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule, ReportsModule],
+  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule, ReportsModule, SuppliersModule],
   controllers: [AppController],
   providers: [
     AppService,

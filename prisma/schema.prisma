@@ -49,6 +49,7 @@ model Tenant {
   users                  User[]
   inventory_transactions InventoryTransaction[]
   orders                 Order[]
+  suppliers              Supplier[]
 
   @@map("tenants")
 }
@@ -72,12 +73,17 @@ model Product {
   price_sale             Decimal                @db.Decimal(10, 2)
   min_stock              Int                    @default(0)
   current_stock          Int                    @default(0)
+  supplier_id            Int?
+  created_at             DateTime               @default(now())
+  updated_at             DateTime               @updatedAt
   // Puedes agregar relaciones aquí
   tenant                 Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  supplier               Supplier?              @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
   inventory_transactions InventoryTransaction[]
   order_items            OrderItem[]
 
   @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
+  @@index([supplier_id])
   @@map("products")
 }
 
@@ -150,4 +156,25 @@ model OrderItem {
   @@index([order_id])
   @@index([product_id])
   @@map("order_items")
+}
+
+model Supplier {
+  id             Int      @id @default(autoincrement())
+  tenant_id      Int
+  name           String
+  contact_person String?
+  email          String?
+  phone          String?
+  address        String?
+  website        String?
+  notes          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([tenant_id])
+  @@map("suppliers")
 }
