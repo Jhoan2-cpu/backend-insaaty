@@ -12,9 +12,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/roles.guard';
 import { OrdersModule } from './modules/orders/orders.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
-  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule],
+  imports: [AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule, ReportsModule],
   controllers: [AppController],
   providers: [
     AppService,
