@@ -22,7 +22,7 @@ model User {
   inventory_transactions InventoryTransaction[]
   refreshTokens          RefreshToken[]
   orders                 Order[]
-  
+
   @@map("users")
 }
 
@@ -89,18 +89,20 @@ model Product {
 }
 
 model InventoryTransaction {
-  id         Int             @id @default(autoincrement())
-  tenant_id  Int
-  product_id Int
-  user_id    Int
-  type       TransactionType //Uso de Enum (In, Out, Adjustment)
-  quantity   Int
-  reason     String?
-  created_at DateTime        @default(now())
+  id          Int             @id @default(autoincrement())
+  tenant_id   Int
+  product_id  Int
+  user_id     Int
+  type        TransactionType //Uso de Enum (In, Out, Adjustment)
+  quantity    Int
+  reason      String?
+  created_at  DateTime        @default(now())
   // Puedes agregar relaciones aquí
-  tenant     Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product    Product         @relation(fields: [product_id], references: [id])
-  user       User            @relation(fields: [user_id], references: [id])
+  tenant      Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [product_id], references: [id])
+  user        User            @relation(fields: [user_id], references: [id])
+  supplier_id Int?
+  supplier    Supplier?       @relation(fields: [supplier_id], references: [id])
 
   @@map("inventory_transactions")
 }
@@ -176,8 +178,9 @@ model Supplier {
   updated_at     DateTime @updatedAt
 
   // Relations
-  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  products Product[]
+  tenant                Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  products              Product[]
+  inventoryTransactions InventoryTransaction[]
 
   @@index([tenant_id])
   @@map("suppliers")

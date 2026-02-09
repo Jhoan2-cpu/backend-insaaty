@@ -38,40 +38,45 @@ export class AuthService {
       throw new BadRequestException('El email ya está registrado');
     }
 
-    // 2. Crear el Tenant (empresa)
-    const tenant = await this.prismaService.tenant.create({
-      data: {
-        name: registerDto.business_name,
-        plan_type: 'FREE',
-        is_active: true,
-      },
-    });
-
-    // 3. Buscar o crear el rol "ADMIN"
-    let adminRole = await this.prismaService.role.findUnique({
-      where: { name: 'ADMIN' },
-    });
-
-    if (!adminRole) {
-      adminRole = await this.prismaService.role.create({
+    // Usar transacción para asegurar que se crea todo o nada
+    const user = await this.prismaService.$transaction(async (prisma) => {
+      // 2. Crear el Tenant (empresa)
+      const tenant = await prisma.tenant.create({
         data: {
-          name: 'ADMIN',
-          description: 'Administrador del sistema',
+          name: registerDto.business_name,
+          plan_type: 'FREE',
+          is_active: true,
         },
       });
-    }
 
-    // 4. Crear el usuario con contraseña hasheada
-    const passwordHash = await bcrypt.hash(registerDto.password, 10);
+      // 3. Buscar o crear el rol "ADMIN"
+      let adminRole = await prisma.role.findUnique({
+        where: { name: 'ADMIN' },
+      });
 
-    const user = await this.prismaService.user.create({
-      data: {
-        email: registerDto.email,
-        password_hash: passwordHash,
-        full_name: registerDto.full_name,
-        tenant_id: tenant.id,
-        role_id: adminRole.id,
-      },
+      if (!adminRole) {
+        adminRole = await prisma.role.create({
+          data: {
+            name: 'ADMIN',
+            description: 'Administrador del sistema',
+          },
+        });
+      }
+
+      // 4. Crear el usuario con contraseña hasheada
+      const passwordHash = await bcrypt.hash(registerDto.password, 10);
+
+      const newUser = await prisma.user.create({
+        data: {
+          email: registerDto.email,
+          password_hash: passwordHash,
+          full_name: registerDto.full_name,
+          tenant_id: tenant.id,
+          role_id: adminRole.id,
+        },
+      });
+
+      return newUser;
     });
 
     // 5. Auto-login: generar tokens y retornarlos

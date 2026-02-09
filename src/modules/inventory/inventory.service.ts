@@ -61,6 +61,7 @@ export class InventoryService {
                     type,
                     quantity,
                     reason: reason || this.getDefaultReason(type),
+                    supplier_id: type === TransactionType.IN ? createTransactionDto.supplier_id : null,
                 },
             });
 
@@ -119,6 +120,9 @@ export class InventoryService {
                     user: {
                         select: { id: true, full_name: true, email: true },
                     },
+                    supplier: {
+                        select: { id: true, name: true },
+                    },
                 },
             }),
             this.prisma.inventoryTransaction.count({
@@ -163,6 +167,9 @@ export class InventoryService {
                     },
                     user: {
                         select: { id: true, full_name: true },
+                    },
+                    supplier: {
+                        select: { id: true, name: true },
                     },
                 },
             }),
