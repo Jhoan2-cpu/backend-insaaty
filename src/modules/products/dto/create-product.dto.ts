@@ -41,4 +41,8 @@ export class CreateProductDto {
     @IsInt({ message: 'El stock actual debe ser un número entero' })
     @Min(0, { message: 'El stock actual no puede ser negativo' })
     current_stock?: number;
+
+    @IsOptional()
+    @IsInt({ message: 'El supplier_id debe ser un número entero' })
+    supplier_id?: number;
 }
