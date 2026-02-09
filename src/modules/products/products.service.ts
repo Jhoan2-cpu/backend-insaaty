@@ -34,6 +34,7 @@ export class ProductsService {
                 price_sale: createProductDto.price_sale,
                 min_stock: createProductDto.min_stock || 0,
                 current_stock: createProductDto.current_stock || 0,
+                supplier_id: createProductDto.supplier_id,
             },
         });
     }

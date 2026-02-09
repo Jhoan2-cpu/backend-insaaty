@@ -61,7 +61,6 @@ export class InventoryService {
                     type,
                     quantity,
                     reason: reason || this.getDefaultReason(type),
-                    supplier_id: type === TransactionType.IN ? createTransactionDto.supplier_id : null,
                 },
             });
 

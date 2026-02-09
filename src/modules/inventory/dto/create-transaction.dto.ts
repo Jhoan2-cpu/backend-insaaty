@@ -24,7 +24,5 @@ export class CreateTransactionDto {
     @IsString()
     reason?: string;
 
-    @IsOptional()
-    @IsInt({ message: 'El supplier_id debe ser un número entero' })
-    supplier_id?: number;
+
 }
