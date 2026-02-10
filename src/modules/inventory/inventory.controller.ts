@@ -8,12 +8,15 @@ import {
     Request,
     ParseIntPipe,
     DefaultValuePipe,
+    UseGuards,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { TransactionType } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard)
 export class InventoryController {
     constructor(private readonly inventoryService: InventoryService) { }
 
