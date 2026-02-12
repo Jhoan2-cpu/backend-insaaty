@@ -45,6 +45,7 @@ export class OrdersController {
         @Query('limit') limit?: string,
         @Query('status') status?: OrderStatus,
         @Query('search') search?: string,
+        @Query('sort') sort?: string,
     ) {
         return this.ordersService.findAll(
             tenantId,
@@ -52,6 +53,7 @@ export class OrdersController {
             limit ? +limit : 10,
             status,
             search,
+            sort,
         );
     }
 

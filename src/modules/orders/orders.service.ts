@@ -87,6 +87,7 @@ export class OrdersService {
         limit: number = 10,
         status?: OrderStatus,
         search?: string,
+        sort?: string,
     ) {
         const skip = (page - 1) * limit;
         const where: Prisma.OrderWhereInput = {
@@ -100,13 +101,32 @@ export class OrdersService {
             }),
         };
 
+        let orderBy: Prisma.OrderOrderByWithRelationInput = { created_at: 'desc' };
+
+        if (sort) {
+            switch (sort) {
+                case 'newest':
+                    orderBy = { created_at: 'desc' };
+                    break;
+                case 'oldest':
+                    orderBy = { created_at: 'asc' };
+                    break;
+                case 'highest_total':
+                    orderBy = { total: 'desc' };
+                    break;
+                case 'lowest_total':
+                    orderBy = { total: 'asc' };
+                    break;
+            }
+        }
+
         const [total, data] = await Promise.all([
             this.prisma.order.count({ where }),
             this.prisma.order.findMany({
                 where,
                 skip,
                 take: limit,
-                orderBy: { created_at: 'desc' },
+                orderBy,
                 include: {
                     user: {
                         select: { id: true, full_name: true, email: true },
