@@ -146,13 +146,47 @@ export class InventoryService {
         page: number = 1,
         limit: number = 10,
         type?: TransactionType,
+        startDate?: string,
+        endDate?: string,
+        userId?: number,
+        search?: string,
     ) {
         const skip = (page - 1) * limit;
 
         const where: any = { tenant_id: tenantId };
+
         if (type) {
             where.type = type;
         }
+
+        if (userId) {
+            where.user_id = Number(userId);
+        }
+
+        if (startDate || endDate) {
+            where.created_at = {};
+            if (startDate) {
+                const [day, month, year] = startDate.split('/').map(Number);
+                where.created_at.gte = new Date(year, month - 1, day);
+            }
+            if (endDate) {
+                const [day, month, year] = endDate.split('/').map(Number);
+                const date = new Date(year, month - 1, day);
+                date.setHours(23, 59, 59, 999);
+                where.created_at.lte = date;
+            }
+        }
+
+        if (search && search.trim() !== '') {
+            where.product = {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { sku: { contains: search, mode: 'insensitive' } },
+                ],
+            };
+        }
+
+        console.log('GetTransactions Where:', JSON.stringify(where, null, 2));
 
         const [data, total] = await Promise.all([
             this.prisma.inventoryTransaction.findMany({

@@ -71,6 +71,10 @@ export class InventoryController {
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
         @Query('type') type?: TransactionType,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('userId') userId?: number,
+        @Query('search') search?: string,
     ) {
         const safeLimit = Math.min(limit, 100);
         return this.inventoryService.getTransactionsByTenant(
@@ -78,6 +82,11 @@ export class InventoryController {
             page,
             safeLimit,
             type,
+            startDate,
+            endDate,
+            userId,
+            search,
+        );
         );
     }
 
