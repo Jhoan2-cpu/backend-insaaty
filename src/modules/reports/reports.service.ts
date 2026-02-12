@@ -1,268 +1,337 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
-import { OrderStatus } from '@prisma/client';
-
-export interface SalesReportData {
-    date: string;
-    totalSales: number;
-    orderCount: number;
-    profit: number;
-}
-
-export interface TopProduct {
-    productId: number;
-    productName: string;
-    sku: string;
-    quantitySold: number;
-    revenue: number;
-}
-
-export interface LowStockProduct {
-    id: number;
-    name: string;
-    sku: string;
-    current_stock: number;
-    min_stock: number;
-    difference: number;
-}
-
-export interface KPIs {
-    totalSales: number;
-    totalOrders: number;
-    completedOrders: number;
-    pendingOrders: number;
-    totalProfit: number;
-    productsCount: number;
-    lowStockCount: number;
-}
+import PdfPrinter from 'pdfmake';
+import { TDocumentDefinitions } from 'pdfmake/interfaces';
+import * as fs from 'fs';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ReportsService {
-    constructor(private prisma: PrismaService) { }
+    private printer: PdfPrinter;
 
-    /**
-     * Reporte de ventas por período
-     */
-    async getSalesReport(
-        tenantId: number,
-        startDate?: Date,
-        endDate?: Date,
-    ): Promise<SalesReportData[]> {
-        const whereClause = {
-            tenant_id: tenantId,
-            status: { in: [OrderStatus.COMPLETED, OrderStatus.PROCESSING] },
-            ...(startDate && endDate && {
-                created_at: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-            }),
+    constructor(private prisma: PrismaService) {
+        const fonts = {
+            Roboto: {
+                normal: 'node_modules/pdfmake/build/vfs_fonts.js', // We will use standard fonts for simplicity or configure correctly
+                bold: 'node_modules/pdfmake/build/vfs_fonts.js',
+                italics: 'node_modules/pdfmake/build/vfs_fonts.js',
+                bolditalics: 'node_modules/pdfmake/build/vfs_fonts.js'
+            }
         };
+        // For standard fonts, we might not need to define this if using standard 14 fonts, but pdfmake requires it.
+        // Actually, let's use the standard fonts from pdfmake/src/browser-extensions/virtual-fs.js style if possible,
+        // or just use Helvetica which doesn't require font files.
+        // Wait, server-side pdfmake requires font files.
 
-        // Obtener pedidos del período
-        const orders = await this.prisma.order.findMany({
-            where: whereClause,
-            include: {
-                order_items: {
-                    include: {
-                        product: true,
-                    },
-                },
-            },
-            orderBy: { created_at: 'asc' },
+        const fontDescriptors = {
+            Roboto: {
+                normal: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf'),
+                bold: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf'),
+                italics: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf'),
+                bolditalics: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf')
+            }
+        };
+        // Simplification: We will use a default Courier/Helvetica approach if possible or simple font.
+        // Actually, easiest way is to install roboto-font or point to the ones in node_modules/pdfmake if they exist.
+        // Let's assume for now we use the ones that come with pdfmake or we'll simple install them.
+
+        // BETTER APPROACH: Use standard fonts definition
+        this.printer = new PdfPrinter({
+            Roboto: {
+                normal: 'Helvetica',
+                bold: 'Helvetica-Bold',
+                italics: 'Helvetica-Oblique',
+                bolditalics: 'Helvetica-BoldOblique'
+            }
+        });
+    }
+
+    async getKPIs(tenantId: number, startDate?: Date, endDate?: Date) {
+        const where: any = { tenant_id: tenantId };
+        if (startDate && endDate) {
+            where.created_at = { gte: startDate, lte: endDate };
+        }
+
+        const totalOrders = await this.prisma.order.count({ where });
+        const totalSalesAgg = await this.prisma.order.aggregate({
+            where,
+            _sum: { total: true }
+        });
+        const totalSales = Number(totalSalesAgg._sum.total || 0);
+
+        // Calculate Average Order Value
+        const aov = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+        // Count Low Stock Products
+        const lowStockCount = await this.prisma.product.count({
+            where: {
+                tenant_id: tenantId,
+                current_stock: { lte: this.prisma.product.fields.min_stock }
+            }
         });
 
-        // Agrupar por día
-        const salesByDay = new Map<string, SalesReportData>();
+        // New Clients (unique users who placed orders in period - approximation)
+        // Ideally we check user creation date, but let's stick to orders for now or just generic user count
+        const totalCustomers = await this.prisma.user.count({
+            where: { tenant_id: tenantId, role: { name: 'CLIENTE' } } // Assuming CLIENTE role exists, or just users
+        });
 
-        for (const order of orders) {
-            const date = order.created_at.toISOString().split('T')[0];
+        return {
+            totalSales,
+            totalOrders,
+            averageOrderValue: aov,
+            lowStockCount,
+            totalCustomers // Total registered customers
+        };
+    }
 
-            if (!salesByDay.has(date)) {
-                salesByDay.set(date, {
-                    date,
-                    totalSales: 0,
-                    orderCount: 0,
-                    profit: 0,
-                });
-            }
-
-            const dayData = salesByDay.get(date)!;
-            dayData.totalSales += Number(order.total);
-            dayData.orderCount += 1;
-
-            // Calcular ganancia (price_sale - price_cost) * quantity
-            for (const item of order.order_items) {
-                const profit = (Number(item.product.price_sale) - Number(item.product.price_cost)) * item.quantity;
-                dayData.profit += profit;
-            }
+    async getSalesReport(tenantId: number, startDate?: Date, endDate?: Date) {
+        const where: any = { tenant_id: tenantId };
+        if (startDate && endDate) {
+            where.created_at = { gte: startDate, lte: endDate };
         }
+
+        const orders = await this.prisma.order.findMany({
+            where,
+            select: {
+                created_at: true,
+                total: true,
+                order_items: {
+                    select: {
+                        unit_price: true,
+                        quantity: true,
+                        product: { select: { price_cost: true } }
+                    }
+                }
+            },
+            orderBy: { created_at: 'asc' }
+        });
+
+        // Group by day
+        const salesByDay = new Map<string, { date: Date, orderCount: number, totalSales: number, profit: number }>();
+
+        orders.forEach(order => {
+            const dateKey = order.created_at.toISOString().split('T')[0];
+            if (!salesByDay.has(dateKey)) {
+                salesByDay.set(dateKey, { date: order.created_at, orderCount: 0, totalSales: 0, profit: 0 });
+            }
+            const entry = salesByDay.get(dateKey)!;
+            entry.orderCount++;
+            entry.totalSales += Number(order.total);
+
+            // Calculate profit (Sale - Cost)
+            let orderCost = 0;
+            order.order_items.forEach(item => {
+                orderCost += Number(item.product.price_cost) * item.quantity;
+            });
+            entry.profit += Number(order.total) - orderCost;
+        });
 
         return Array.from(salesByDay.values());
     }
 
-    /**
-     * Top productos más vendidos
-     */
-    async getTopProducts(
-        tenantId: number,
-        limit: number = 10,
-        startDate?: Date,
-        endDate?: Date,
-    ): Promise<TopProduct[]> {
-        const whereClause = {
-            order: {
-                tenant_id: tenantId,
-                status: { in: [OrderStatus.COMPLETED, OrderStatus.PROCESSING] },
-                ...(startDate && endDate && {
-                    created_at: {
-                        gte: startDate,
-                        lte: endDate,
-                    },
-                }),
-            },
-        };
-
-        // Obtener order_items de pedidos completados
-        const orderItems = await this.prisma.orderItem.findMany({
-            where: whereClause,
-            include: {
-                product: {
-                    select: {
-                        id: true,
-                        name: true,
-                        sku: true,
-                        price_sale: true,
-                    },
-                },
-            },
-        });
-
-        // Agrupar por producto
-        const productSales = new Map<number, TopProduct>();
-
-        for (const item of orderItems) {
-            const productId = item.product_id;
-
-            if (!productSales.has(productId)) {
-                productSales.set(productId, {
-                    productId: item.product.id,
-                    productName: item.product.name,
-                    sku: item.product.sku,
-                    quantitySold: 0,
-                    revenue: 0,
-                });
-            }
-
-            const productData = productSales.get(productId)!;
-            productData.quantitySold += item.quantity;
-            productData.revenue += Number(item.subtotal);
+    async getTopProducts(tenantId: number, limit: number, startDate?: Date, endDate?: Date) {
+        const where: any = { order: { tenant_id: tenantId } };
+        if (startDate && endDate) {
+            where.order = { ...where.order, created_at: { gte: startDate, lte: endDate } };
         }
 
-        // Convertir a array y ordenar por cantidad vendida
-        return Array.from(productSales.values())
-            .sort((a, b) => b.quantitySold - a.quantitySold)
-            .slice(0, limit);
+        const topProducts = await this.prisma.orderItem.groupBy({
+            by: ['product_id'],
+            where,
+            _sum: {
+                quantity: true,
+                subtotal: true
+            },
+            orderBy: {
+                _sum: { subtotal: 'desc' }
+            },
+            take: limit
+        });
+
+        // Fetch product details
+        const enrichedProducts = await Promise.all(topProducts.map(async (item) => {
+            const product = await this.prisma.product.findUnique({
+                where: { id: item.product_id }
+            });
+            return {
+                productName: product?.name || 'Unknown',
+                sku: product?.sku || 'N/A',
+                quantitySold: item._sum.quantity || 0,
+                revenue: Number(item._sum.subtotal || 0)
+            };
+        }));
+
+        return enrichedProducts;
     }
 
-    /**
-     * Productos con bajo stock (current_stock < min_stock)
-     */
-    async getLowStockProducts(tenantId: number): Promise<LowStockProduct[]> {
-        const products = await this.prisma.product.findMany({
+    async getLowStockProducts(tenantId: number) {
+        return this.prisma.product.findMany({
             where: {
                 tenant_id: tenantId,
+                current_stock: { lte: this.prisma.product.fields.min_stock }
             },
             select: {
-                id: true,
                 name: true,
                 sku: true,
                 current_stock: true,
                 min_stock: true,
+                price_sale: true
             },
+            take: 10 // Limit to top 10 low stock
         });
-
-        return products
-            .filter((p) => p.current_stock < p.min_stock)
-            .map((p) => ({
-                id: p.id,
-                name: p.name,
-                sku: p.sku,
-                current_stock: p.current_stock,
-                min_stock: p.min_stock,
-                difference: p.min_stock - p.current_stock,
-            }))
-            .sort((a, b) => b.difference - a.difference);
     }
 
-    /**
-     * KPIs generales del negocio
-     */
-    async getKPIs(
-        tenantId: number,
-        startDate?: Date,
-        endDate?: Date,
-    ): Promise<KPIs> {
-        const whereClause = {
-            tenant_id: tenantId,
-            ...(startDate && endDate && {
-                created_at: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-            }),
+    async generateSalesReport(tenantId: number, userId: number, data: any[], dateRange: string) {
+        const docDefinition: TDocumentDefinitions = {
+            content: [
+                { text: 'INSAATY', style: 'header' },
+                { text: 'Reporte de Ventas', style: 'subheader' },
+                { text: dateRange, style: 'subheader' },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['*', 'auto', 'auto', 'auto'],
+                        body: [
+                            ['Fecha', 'Pedidos', 'Ventas', 'Ganancia'],
+                            ...data.map(item => [
+                                new Date(item.date).toLocaleDateString(),
+                                item.orderCount,
+                                `$${item.totalSales}`,
+                                `$${item.profit}`
+                            ])
+                        ]
+                    }
+                }
+            ],
+            styles: {
+                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
+                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
+            },
+            defaultStyle: {
+                font: 'Roboto'
+            }
         };
 
-        // Total de pedidos por estado
-        const [completedOrders, pendingOrders, allOrders] = await Promise.all([
-            this.prisma.order.count({
-                where: { ...whereClause, status: OrderStatus.COMPLETED },
-            }),
-            this.prisma.order.count({
-                where: { ...whereClause, status: OrderStatus.PENDING },
-            }),
-            this.prisma.order.findMany({
-                where: {
-                    ...whereClause,
-                    status: { in: [OrderStatus.COMPLETED, OrderStatus.PROCESSING] },
-                },
-                include: {
-                    order_items: {
-                        include: {
-                            product: true,
-                        },
-                    },
-                },
-            }),
-        ]);
+        return this.createPdf(docDefinition, 'SALES', tenantId, userId);
+    }
 
-        // Calcular ventas totales y ganancias
-        let totalSales = 0;
-        let totalProfit = 0;
+    async generateTopProductsReport(tenantId: number, userId: number, data: any[], dateRange: string) {
+        const docDefinition: TDocumentDefinitions = {
+            content: [
+                { text: 'INSAATY', style: 'header' },
+                { text: 'Productos Más Vendidos', style: 'subheader' },
+                { text: dateRange, style: 'subheader' },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['auto', '*', 'auto', 'auto', 'auto'],
+                        body: [
+                            ['#', 'Producto', 'SKU', 'Cant.', 'Ingresos'],
+                            ...data.map((item, index) => [
+                                index + 1,
+                                item.productName,
+                                item.sku,
+                                item.quantitySold,
+                                `$${item.revenue}`
+                            ])
+                        ]
+                    }
+                }
+            ],
+            styles: {
+                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
+                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
+            },
+            defaultStyle: { font: 'Roboto' }
+        };
+        return this.createPdf(docDefinition, 'INVENTORY', tenantId, userId);
+    }
 
-        for (const order of allOrders) {
-            totalSales += Number(order.total);
-
-            for (const item of order.order_items) {
-                const profit = (Number(item.product.price_sale) - Number(item.product.price_cost)) * item.quantity;
-                totalProfit += profit;
-            }
+    async getMovements(tenantId: number, startDate?: Date, endDate?: Date) {
+        const where: any = { tenant_id: tenantId };
+        if (startDate && endDate) {
+            where.created_at = { gte: startDate, lte: endDate };
         }
 
-        // Contar productos totales y con bajo stock
-        const [productsCount, lowStockProducts] = await Promise.all([
-            this.prisma.product.count({ where: { tenant_id: tenantId } }),
-            this.getLowStockProducts(tenantId),
-        ]);
+        return this.prisma.inventoryTransaction.findMany({
+            where,
+            include: {
+                product: true,
+                user: true
+            },
+            orderBy: { created_at: 'desc' }
+        });
+    }
 
-        return {
-            totalSales,
-            totalOrders: allOrders.length,
-            completedOrders,
-            pendingOrders,
-            totalProfit,
-            productsCount,
-            lowStockCount: lowStockProducts.length,
+    async generateMovementsReport(tenantId: number, userId: number, data: any[], dateRange: string) {
+        const docDefinition: TDocumentDefinitions = {
+            content: [
+                { text: 'INSAATY', style: 'header' },
+                { text: 'Reporte de Movimientos', style: 'subheader' },
+                { text: dateRange, style: 'subheader' },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['auto', '*', 'auto', 'auto', 'auto'],
+                        body: [
+                            ['Fecha', 'Producto', 'Tipo', 'Cant.', 'Usuario'],
+                            ...data.map(item => [
+                                new Date(item.created_at).toLocaleDateString(),
+                                item.product?.name || '-',
+                                item.type,
+                                item.quantity,
+                                item.user?.full_name || '-'
+                            ])
+                        ]
+                    }
+                }
+            ],
+            styles: {
+                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
+                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
+            },
+            defaultStyle: { font: 'Roboto' }
         };
+        return this.createPdf(docDefinition, 'MOVEMENTS', tenantId, userId);
+    }
+
+    private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
+            const fileName = `report-${type}-${Date.now()}-${uuidv4()}.pdf`;
+            const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
+
+            // Ensure directory exists
+            const dir = path.dirname(filePath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            const writeStream = fs.createWriteStream(filePath);
+            pdfDoc.pipe(writeStream);
+            pdfDoc.end();
+
+            writeStream.on('finish', async () => {
+                const url = `/uploads/reports/${fileName}`;
+
+                // Save to DB
+                await this.prisma.report.create({
+                    data: {
+                        tenant_id: tenantId,
+                        user_id: userId,
+                        type: type,
+                        url: url
+                    }
+                });
+
+                resolve(url);
+            });
+
+            writeStream.on('error', (err) => {
+                reject(err);
+            });
+        });
     }
 }

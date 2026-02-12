@@ -65,4 +65,59 @@ export class ReportsController {
 
         return this.reportsService.getKPIs(req.user.tenantId, start, end);
     }
+
+    @Get('generate/sales')
+    async generateSalesReport(
+        @Request() req,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const start = startDate ? new Date(startDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const data = await this.reportsService.getSalesReport(req.user.tenantId, start, end);
+        const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
+        const url = await this.reportsService.generateSalesReport(req.user.tenantId, req.user.userId, data, dateRange);
+        return { url };
+    }
+
+    @Get('generate/top-products')
+    async generateTopProductsReport(
+        @Request() req,
+        @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const start = startDate ? new Date(startDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const data = await this.reportsService.getTopProducts(req.user.tenantId, limit, start, end);
+        const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
+        const url = await this.reportsService.generateTopProductsReport(req.user.tenantId, req.user.userId, data, dateRange);
+        return { url };
+    }
+
+    @Get('generate/movements')
+    async generateMovementsReport(
+        @Request() req,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const start = startDate ? new Date(startDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const data = await this.reportsService.getMovements(req.user.tenantId, start, end);
+        const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
+        const url = await this.reportsService.generateMovementsReport(req.user.tenantId, req.user.userId, data, dateRange);
+        return { url };
+    }
 }

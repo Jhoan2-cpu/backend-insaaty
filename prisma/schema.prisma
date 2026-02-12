@@ -22,6 +22,7 @@ model User {
   inventory_transactions InventoryTransaction[]
   refreshTokens          RefreshToken[]
   orders                 Order[]
+  reports                Report[]
 
   @@map("users")
 }
@@ -51,6 +52,7 @@ model Tenant {
   inventory_transactions InventoryTransaction[]
   orders                 Order[]
   suppliers              Supplier[]
+  reports                Report[]
 
   @@map("tenants")
 }
@@ -185,4 +187,26 @@ model Supplier {
 
   @@index([tenant_id])
   @@map("suppliers")
+}
+
+enum ReportType {
+  SALES
+  INVENTORY
+  MOVEMENTS
+}
+
+model Report {
+  id         Int        @id @default(autoincrement())
+  tenant_id  Int
+  user_id    Int
+  type       ReportType
+  url        String
+  created_at DateTime   @default(now())
+
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
+  @@map("reports")
 }
