@@ -18,7 +18,7 @@ export class OrdersService {
     }
 
     async create(createOrderDto: CreateOrderDto, tenantId: number, userId: number) {
-        const { items, notes } = createOrderDto;
+        const { items, notes, customer_name } = createOrderDto;
 
         // 1. Validate items and stock
         const productIds = items.map((item) => item.product_id);
@@ -62,6 +62,7 @@ export class OrdersService {
                 status: OrderStatus.PENDING,
                 total: totalAmount,
                 notes: notes,
+                customer_name: customer_name,
                 order_items: {
                     create: items.map((item) => ({
                         product_id: item.product_id,

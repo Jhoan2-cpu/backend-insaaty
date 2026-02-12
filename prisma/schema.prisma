@@ -132,6 +132,7 @@ model Order {
   order_number String      @unique
   tenant_id    Int
   user_id      Int
+  customer_name String?
   tenant       Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   user         User        @relation(fields: [user_id], references: [id])
   status       OrderStatus @default(PENDING)
