@@ -87,7 +87,7 @@ export class InventoryController {
             userId,
             search,
         );
-        );
+
     }
 
     @Get('transactions/product/:productId')
