@@ -162,116 +162,83 @@ export class ReportsService {
     }
 
     async generateSalesReport(tenantId: number, userId: number, data: any[], dateRange: string) {
-        const docDefinition: TDocumentDefinitions = {
-            content: [
-                { text: 'INSAATY', style: 'header' },
-                { text: 'Reporte de Ventas', style: 'subheader' },
-                { text: dateRange, style: 'subheader' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', 'auto', 'auto', 'auto'],
-                        body: [
-                            ['Fecha', 'Pedidos', 'Ventas', 'Ganancia'],
-                            ...data.map(item => [
-                                new Date(item.date).toLocaleDateString(),
-                                item.orderCount,
-                                `$${item.totalSales}`,
-                                `$${item.profit}`
-                            ])
-                        ]
-                    }
-                }
+        const tableBody = [
+            [
+                { text: 'Fecha', style: 'tableHeader' },
+                { text: 'Pedidos', style: 'tableHeader', alignment: 'center' },
+                { text: 'Ventas', style: 'tableHeader', alignment: 'right' },
+                { text: 'Ganancia', style: 'tableHeader', alignment: 'right' }
             ],
-            styles: {
-                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
-                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
-            },
-            defaultStyle: {
-                font: 'Roboto'
-            }
-        };
+            ...data.map(item => [
+                { text: new Date(item.date).toLocaleDateString(), style: 'tableCell' },
+                { text: item.orderCount, style: 'tableCell', alignment: 'center' },
+                { text: `$${item.totalSales.toFixed(2)}`, style: 'tableCell', alignment: 'right' },
+                { text: `$${item.profit.toFixed(2)}`, style: 'tableCell', alignment: 'right', color: item.profit >= 0 ? '#10b981' : '#ef4444' }
+            ])
+        ];
 
+        // Calcular totales
+        const totalSales = data.reduce((acc, curr) => acc + curr.totalSales, 0);
+        const totalProfit = data.reduce((acc, curr) => acc + curr.profit, 0);
+
+        tableBody.push([
+            { text: 'TOTALES', style: 'tableHeader', colSpan: 2, alignment: 'right' },
+            {},
+            { text: `$${totalSales.toFixed(2)}`, style: 'tableHeader', alignment: 'right' },
+            { text: `$${totalProfit.toFixed(2)}`, style: 'tableHeader', alignment: 'right' }
+        ]);
+
+        const docDefinition = this.getCommonDocDefinition('Reporte de Ventas', dateRange, tableBody);
         return this.createPdf(docDefinition, 'SALES', tenantId, userId);
     }
 
     async generateTopProductsReport(tenantId: number, userId: number, data: any[], dateRange: string) {
-        const docDefinition: TDocumentDefinitions = {
-            content: [
-                { text: 'INSAATY', style: 'header' },
-                { text: 'Productos Más Vendidos', style: 'subheader' },
-                { text: dateRange, style: 'subheader' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', 'auto', 'auto', 'auto'],
-                        body: [
-                            ['#', 'Producto', 'SKU', 'Cant.', 'Ingresos'],
-                            ...data.map((item, index) => [
-                                index + 1,
-                                item.productName,
-                                item.sku,
-                                item.quantitySold,
-                                `$${item.revenue}`
-                            ])
-                        ]
-                    }
-                }
+        const tableBody = [
+            [
+                { text: '#', style: 'tableHeader' },
+                { text: 'Producto', style: 'tableHeader' },
+                { text: 'SKU', style: 'tableHeader' },
+                { text: 'Cant. Vendida', style: 'tableHeader', alignment: 'center' },
+                { text: 'Ingresos', style: 'tableHeader', alignment: 'right' }
             ],
-            styles: {
-                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
-                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
-            },
-            defaultStyle: { font: 'Roboto' }
-        };
+            ...data.map((item, index) => [
+                { text: index + 1, style: 'tableCell' },
+                { text: item.productName, style: 'tableCell', bold: true },
+                { text: item.sku, style: 'tableCell', color: '#6b7280' },
+                { text: item.quantitySold, style: 'tableCell', alignment: 'center' },
+                { text: `$${item.revenue.toFixed(2)}`, style: 'tableCell', alignment: 'right' }
+            ])
+        ];
+
+        const docDefinition = this.getCommonDocDefinition('Productos Más Vendidos', dateRange, tableBody, [15, '*', 'auto', 'auto', 'auto']);
         return this.createPdf(docDefinition, 'INVENTORY', tenantId, userId);
     }
 
-    async getMovements(tenantId: number, startDate?: Date, endDate?: Date) {
-        const where: any = { tenant_id: tenantId };
-        if (startDate && endDate) {
-            where.created_at = { gte: startDate, lte: endDate };
-        }
-
-        return this.prisma.inventoryTransaction.findMany({
-            where,
-            include: {
-                product: true,
-                user: true
-            },
-            orderBy: { created_at: 'desc' }
-        });
-    }
-
     async generateMovementsReport(tenantId: number, userId: number, data: any[], dateRange: string) {
-        const docDefinition: TDocumentDefinitions = {
-            content: [
-                { text: 'INSAATY', style: 'header' },
-                { text: 'Reporte de Movimientos', style: 'subheader' },
-                { text: dateRange, style: 'subheader' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', 'auto', 'auto', 'auto'],
-                        body: [
-                            ['Fecha', 'Producto', 'Tipo', 'Cant.', 'Usuario'],
-                            ...data.map(item => [
-                                new Date(item.created_at).toLocaleDateString(),
-                                item.product?.name || '-',
-                                item.type,
-                                item.quantity,
-                                item.user?.full_name || '-'
-                            ])
-                        ]
-                    }
-                }
+        const tableBody = [
+            [
+                { text: 'Fecha', style: 'tableHeader' },
+                { text: 'Producto', style: 'tableHeader' },
+                { text: 'Tipo', style: 'tableHeader', alignment: 'center' },
+                { text: 'Cant.', style: 'tableHeader', alignment: 'right' },
+                { text: 'Usuario', style: 'tableHeader' }
             ],
-            styles: {
-                header: { fontSize: 22, bold: true, color: '#10b981', margin: [0, 0, 0, 10] },
-                subheader: { fontSize: 14, margin: [0, 0, 0, 5] }
-            },
-            defaultStyle: { font: 'Roboto' }
-        };
+            ...data.map(item => [
+                { text: new Date(item.created_at).toLocaleDateString() + ' ' + new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), style: 'tableCell', fontSize: 9 },
+                { text: item.product?.name || '-', style: 'tableCell' },
+                {
+                    text: item.type,
+                    style: 'tableCell',
+                    alignment: 'center',
+                    color: item.type === 'IN' ? '#10b981' : (item.type === 'OUT' ? '#ef4444' : '#3b82f6'),
+                    bold: true
+                },
+                { text: item.quantity, style: 'tableCell', alignment: 'right', bold: true },
+                { text: item.user?.full_name || '-', style: 'tableCell', color: '#4b5563' }
+            ])
+        ];
+
+        const docDefinition = this.getCommonDocDefinition('Reporte de Movimientos', dateRange, tableBody, ['auto', '*', 'auto', 'auto', 'auto']);
         return this.createPdf(docDefinition, 'MOVEMENTS', tenantId, userId);
     }
 
@@ -283,10 +250,81 @@ export class ReportsService {
         });
     }
 
+    private getCommonDocDefinition(title: string, dateRange: string, tableBody: any[], widths: any = '*'): TDocumentDefinitions {
+        return {
+            content: [
+                // Header
+                {
+                    columns: [
+                        {
+                            stack: [
+                                { text: 'INSAATY', style: 'brand' },
+                                { text: 'Inventory Management', style: 'brandSub' }
+                            ]
+                        },
+                        {
+                            stack: [
+                                { text: title, style: 'header', alignment: 'right' },
+                                { text: dateRange, style: 'subheader', alignment: 'right' }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 20]
+                },
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: '#10b981' }] },
+                { text: '', margin: [0, 0, 0, 20] }, // Spacer
+
+                // Table
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: widths === '*' ? Array(tableBody[0].length).fill('*') : widths,
+                        body: tableBody
+                    },
+                    layout: {
+                        fillColor: (rowIndex) => {
+                            return (rowIndex % 2 === 0) ? '#f9fafb' : null;
+                        },
+                        hLineWidth: (i, node) => {
+                            return (i === 0 || i === node.table.body.length) ? 0 : 1;
+                        },
+                        vLineWidth: () => 0,
+                        hLineColor: () => '#e5e7eb',
+                        paddingLeft: () => 8,
+                        paddingRight: () => 8,
+                        paddingTop: () => 8,
+                        paddingBottom: () => 8
+                    }
+                }
+            ],
+            footer: (currentPage, pageCount) => {
+                return {
+                    columns: [
+                        { text: `Generado el ${new Date().toLocaleDateString()}`, style: 'footer', alignment: 'left', margin: [40, 0] },
+                        { text: `Página ${currentPage} de ${pageCount}`, style: 'footer', alignment: 'right', margin: [0, 0, 40, 0] }
+                    ]
+                };
+            },
+            styles: {
+                brand: { fontSize: 24, bold: true, color: '#10b981' },
+                brandSub: { fontSize: 10, color: '#6b7280', margin: [0, -3, 0, 0] },
+                header: { fontSize: 18, bold: true, color: '#111827' },
+                subheader: { fontSize: 10, color: '#6b7280' },
+                tableHeader: { fontSize: 10, bold: true, color: '#374151', fillColor: '#e0e7ff' }, // Fallback fill if layout doesn't override first row
+                tableCell: { fontSize: 10, color: '#4b5563' },
+                footer: { fontSize: 8, color: '#9ca3af' }
+            },
+            defaultStyle: {
+                font: 'Roboto',
+                columnGap: 20
+            }
+        };
+    }
+
     private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
         return new Promise((resolve, reject) => {
             const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
-            const fileName = `report-${type}-${Date.now()}-${uuidv4()}.pdf`;
+            const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
 
             // Ensure directory exists
