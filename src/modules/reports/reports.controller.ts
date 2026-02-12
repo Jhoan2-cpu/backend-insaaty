@@ -120,4 +120,8 @@ export class ReportsController {
         const url = await this.reportsService.generateMovementsReport(req.user.tenantId, req.user.userId, data, dateRange);
         return { url };
     }
+    @Get('history')
+    async getReportHistory(@Request() req) {
+        return this.reportsService.getReportHistory(req.user.tenantId);
+    }
 }

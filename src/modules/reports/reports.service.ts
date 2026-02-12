@@ -275,6 +275,14 @@ export class ReportsService {
         return this.createPdf(docDefinition, 'MOVEMENTS', tenantId, userId);
     }
 
+    async getReportHistory(tenantId: number) {
+        return this.prisma.report.findMany({
+            where: { tenant_id: tenantId },
+            orderBy: { created_at: 'desc' },
+            include: { user: { select: { full_name: true } } }
+        });
+    }
+
     private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
         return new Promise((resolve, reject) => {
             const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
