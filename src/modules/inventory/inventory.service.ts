@@ -186,8 +186,6 @@ export class InventoryService {
             };
         }
 
-        console.log('GetTransactions Where:', JSON.stringify(where, null, 2));
-
         const [data, total] = await Promise.all([
             this.prisma.inventoryTransaction.findMany({
                 where,
