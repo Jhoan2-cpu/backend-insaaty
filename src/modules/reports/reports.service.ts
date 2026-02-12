@@ -6,23 +6,100 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const PdfPrinter = require('pdfmake/js/Printer').default;
+const PdfPrinter = require('pdfmake');
 
 @Injectable()
 export class ReportsService {
     private printer: any;
 
     constructor(private prisma: PrismaService) {
+        // Use require.resolve to find the fonts relative to the pdfmake package
         const fonts = {
             Roboto: {
+                normal: path.join(__dirname, '../../../../node_modules/pdfmake/fonts/Roboto/Roboto-Regular.ttf'),
+                bold: path.join(__dirname, '../../../../node_modules/pdfmake/fonts/Roboto/Roboto-Medium.ttf'),
+                italics: path.join(__dirname, '../../../../node_modules/pdfmake/fonts/Roboto/Roboto-Italic.ttf'),
+                bolditalics: path.join(__dirname, '../../../../node_modules/pdfmake/fonts/Roboto/Roboto-MediumItalic.ttf')
+            }
+        };
+
+        // Fallback to absolute path check if relative path via __dirname fails
+        if (!fs.existsSync(fonts.Roboto.normal)) {
+            console.log('Fonts not found at relative path, trying process.cwd()');
+            fonts.Roboto = {
                 normal: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Regular.ttf'),
                 bold: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Medium.ttf'),
                 italics: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Italic.ttf'),
                 bolditalics: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-MediumItalic.ttf')
-            }
-        };
+            };
+        }
 
-        this.printer = new PdfPrinter(fonts);
+        console.log('PDF Fonts paths:', fonts);
+
+        try {
+            // Try to instantiate directly from require('pdfmake')
+            this.printer = new PdfPrinter(fonts);
+            console.log('✅ PdfPrinter initialized successfully.');
+        } catch (error) {
+            console.error('⚠️ Error initializing PdfPrinter with default require:', error);
+            try {
+                // Fallback: sometimes it's exported as default
+                const Printer = require('pdfmake/js/Printer');
+                this.printer = new Printer(fonts);
+                console.log('✅ PdfPrinter initialized successfully with fallback.');
+            } catch (fallbackError) {
+                console.error('❌ CRITICAL: Failed to initialize PdfPrinter via fallback:', fallbackError);
+            }
+        }
+    }
+    // ... (rest of the file until createPdf) ...
+    private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
+        return new Promise((resolve, reject) => {
+            try {
+                const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
+                console.log('📄 PDF Document created. Is it valid?', !!pdfDoc);
+                if (pdfDoc) {
+                    console.log('Keys:', Object.keys(pdfDoc));
+                    console.log('Has pipe?', typeof pdfDoc.pipe === 'function');
+                }
+                const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
+                const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
+
+                // Ensure directory exists
+                const dir = path.dirname(filePath);
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+
+                const writeStream = fs.createWriteStream(filePath);
+                pdfDoc.pipe(writeStream);
+                pdfDoc.end();
+
+                writeStream.on('finish', async () => {
+                    const url = `/uploads/reports/${fileName}`;
+
+                    // Save to DB
+                    await this.prisma.report.create({
+                        data: {
+                            tenant_id: tenantId,
+                            user_id: userId,
+                            type: type,
+                            url: url
+                        }
+                    });
+
+                    resolve(url);
+                });
+
+                writeStream.on('error', (err) => {
+                    console.error('Error writing PDF file:', err);
+                    reject(err);
+                });
+            } catch (err) {
+                console.error('Error creating PDF document:', err);
+                reject(err);
+            }
+        });
     }
 
     async getKPIs(tenantId: number, startDate?: Date, endDate?: Date) {
@@ -161,8 +238,24 @@ export class ReportsService {
         });
     }
 
+    async getMovements(tenantId: number, startDate?: Date, endDate?: Date) {
+        const where: any = { tenant_id: tenantId };
+        if (startDate && endDate) {
+            where.created_at = { gte: startDate, lte: endDate };
+        }
+
+        return this.prisma.inventoryTransaction.findMany({
+            where,
+            include: {
+                product: true,
+                user: true
+            },
+            orderBy: { created_at: 'desc' }
+        });
+    }
+
     async generateSalesReport(tenantId: number, userId: number, data: any[], dateRange: string) {
-        const tableBody = [
+        const tableBody: any[] = [
             [
                 { text: 'Fecha', style: 'tableHeader' },
                 { text: 'Pedidos', style: 'tableHeader', alignment: 'center' },
@@ -321,41 +414,5 @@ export class ReportsService {
         };
     }
 
-    private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
-            const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
-            const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
 
-            // Ensure directory exists
-            const dir = path.dirname(filePath);
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
-
-            const writeStream = fs.createWriteStream(filePath);
-            pdfDoc.pipe(writeStream);
-            pdfDoc.end();
-
-            writeStream.on('finish', async () => {
-                const url = `/uploads/reports/${fileName}`;
-
-                // Save to DB
-                await this.prisma.report.create({
-                    data: {
-                        tenant_id: tenantId,
-                        user_id: userId,
-                        type: type,
-                        url: url
-                    }
-                });
-
-                resolve(url);
-            });
-
-            writeStream.on('error', (err) => {
-                reject(err);
-            });
-        });
-    }
 }
