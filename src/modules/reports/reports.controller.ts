@@ -22,7 +22,10 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const start = startDate ? new Date(startDate) : undefined;
-        const end = endDate ? new Date(endDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
 
         return this.reportsService.getSalesReport(req.user.tenantId, start, end);
     }
@@ -35,7 +38,10 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const start = startDate ? new Date(startDate) : undefined;
-        const end = endDate ? new Date(endDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
 
         return this.reportsService.getTopProducts(req.user.tenantId, limit, start, end);
     }
@@ -52,7 +58,10 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const start = startDate ? new Date(startDate) : undefined;
-        const end = endDate ? new Date(endDate) : undefined;
+        let end = endDate ? new Date(endDate) : undefined;
+        if (end) {
+            end.setHours(23, 59, 59, 999);
+        }
 
         return this.reportsService.getKPIs(req.user.tenantId, start, end);
     }
