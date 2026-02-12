@@ -1,50 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
-import PdfPrinter from 'pdfmake';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PdfPrinter = require('pdfmake/js/Printer').default;
+
 @Injectable()
 export class ReportsService {
-    private printer: PdfPrinter;
+    private printer: any;
 
     constructor(private prisma: PrismaService) {
         const fonts = {
             Roboto: {
-                normal: 'node_modules/pdfmake/build/vfs_fonts.js', // We will use standard fonts for simplicity or configure correctly
-                bold: 'node_modules/pdfmake/build/vfs_fonts.js',
-                italics: 'node_modules/pdfmake/build/vfs_fonts.js',
-                bolditalics: 'node_modules/pdfmake/build/vfs_fonts.js'
+                normal: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Regular.ttf'),
+                bold: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Medium.ttf'),
+                italics: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-Italic.ttf'),
+                bolditalics: path.join(process.cwd(), 'node_modules/pdfmake/fonts/Roboto/Roboto-MediumItalic.ttf')
             }
         };
-        // For standard fonts, we might not need to define this if using standard 14 fonts, but pdfmake requires it.
-        // Actually, let's use the standard fonts from pdfmake/src/browser-extensions/virtual-fs.js style if possible,
-        // or just use Helvetica which doesn't require font files.
-        // Wait, server-side pdfmake requires font files.
 
-        const fontDescriptors = {
-            Roboto: {
-                normal: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf'),
-                bold: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf'),
-                italics: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf'),
-                bolditalics: path.join(__dirname, '../../..', 'node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf')
-            }
-        };
-        // Simplification: We will use a default Courier/Helvetica approach if possible or simple font.
-        // Actually, easiest way is to install roboto-font or point to the ones in node_modules/pdfmake if they exist.
-        // Let's assume for now we use the ones that come with pdfmake or we'll simple install them.
-
-        // BETTER APPROACH: Use standard fonts definition
-        this.printer = new PdfPrinter({
-            Roboto: {
-                normal: 'Helvetica',
-                bold: 'Helvetica-Bold',
-                italics: 'Helvetica-Oblique',
-                bolditalics: 'Helvetica-BoldOblique'
-            }
-        });
+        this.printer = new PdfPrinter(fonts);
     }
 
     async getKPIs(tenantId: number, startDate?: Date, endDate?: Date) {
