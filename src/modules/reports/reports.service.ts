@@ -79,7 +79,7 @@ export class ReportsService {
                 const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
 
                 const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
-                const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
+                const filePath = path.join(process.cwd(), 'uploads', 'reports', fileName);
 
                 // Ensure directory exists
                 const dir = path.dirname(filePath);
