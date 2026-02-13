@@ -80,7 +80,7 @@ export class ReportsController {
 
         const data = await this.reportsService.getSalesReport(req.user.tenantId, start, end);
         const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
-        const url = await this.reportsService.generateSalesReport(req.user.tenantId, req.user.userId, data, dateRange);
+        const url = await this.reportsService.generateSalesReport(req.user.tenantId, req.user.id, data, dateRange);
         return { url };
     }
 
@@ -99,7 +99,7 @@ export class ReportsController {
 
         const data = await this.reportsService.getTopProducts(req.user.tenantId, limit, start, end);
         const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
-        const url = await this.reportsService.generateTopProductsReport(req.user.tenantId, req.user.userId, data, dateRange);
+        const url = await this.reportsService.generateTopProductsReport(req.user.tenantId, req.user.id, data, dateRange);
         return { url };
     }
 
@@ -117,7 +117,7 @@ export class ReportsController {
 
         const data = await this.reportsService.getMovements(req.user.tenantId, start, end);
         const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
-        const url = await this.reportsService.generateMovementsReport(req.user.tenantId, req.user.userId, data, dateRange);
+        const url = await this.reportsService.generateMovementsReport(req.user.tenantId, req.user.id, data, dateRange);
         return { url };
     }
     @Get('history')

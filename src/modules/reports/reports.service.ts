@@ -67,15 +67,17 @@ export class ReportsService {
         }
     }
 
-    private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
-        return new Promise((resolve, reject) => {
+    private async createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
+        return new Promise(async (resolve, reject) => {
             if (!this.printer) {
                 const error = new Error('PDF Printer Service not initialized. Check server logs for initialization errors.');
                 console.error(error);
                 return reject(error);
             }
             try {
-                const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
+                // In version 0.3.x, createPdfKitDocument is async and returns a promise
+                const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+
                 const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
                 const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
 
@@ -92,16 +94,28 @@ export class ReportsService {
                 writeStream.on('finish', async () => {
                     const url = `/uploads/reports/${fileName}`;
 
-                    // Save to DB
-                    await this.prisma.report.create({
-                        data: {
-                            tenant_id: tenantId,
-                            user_id: userId,
-                            type: type,
-                            url: url
-                        }
-                    });
-
+                    if (!tenantId || !userId) {
+                        console.error('Missing tenantId or userId for DB save:', { tenantId, userId });
+                        // Proceed without saving to DB if critical IDs are missing, OR throw.
+                        // Since schema requires them, we must throw or skip DB save.
+                        // Let's skip DB save to at least return the PDF if possible, but logging the error.
+                        console.warn('⚠️ Report not saved to DB due to missing IDs.');
+                    } else {
+                        // Save to DB
+                        await this.prisma.report.create({
+                            data: {
+                                type: type,
+                                url: url,
+                                // Use explicit connect syntax for relations
+                                tenant: {
+                                    connect: { id: Number(tenantId) }
+                                },
+                                user: {
+                                    connect: { id: Number(userId) }
+                                }
+                            }
+                        });
+                    }
                     resolve(url);
                 });
 
