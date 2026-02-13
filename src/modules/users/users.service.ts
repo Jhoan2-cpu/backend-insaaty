@@ -90,6 +90,7 @@ export class UsersService {
         id: true,
         email: true,
         full_name: true,
+        bio: true,
         role_id: true,
         tenant_id: true,
         last_login: true,
@@ -126,6 +127,9 @@ export class UsersService {
     }
     if (updateUserDto.roleId !== undefined) {
       dataToUpdate.role_id = updateUserDto.roleId;
+    }
+    if (updateUserDto.bio !== undefined) {
+      dataToUpdate.bio = updateUserDto.bio;
     }
 
     return await this.prisma.user.update({
