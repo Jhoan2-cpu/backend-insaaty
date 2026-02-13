@@ -132,11 +132,23 @@ export class ReportsService {
 
     async getKPIs(tenantId: number, startDate?: Date, endDate?: Date) {
         const where: any = { tenant_id: tenantId };
+
+        // If range is provided, use it. If not, default to "Today" for KPI cards
         if (startDate && endDate) {
             where.created_at = { gte: startDate, lte: endDate };
+        } else {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
+            where.created_at = { gte: today, lt: tomorrow };
         }
 
-        const totalOrders = await this.prisma.order.count({ where });
+        const [totalOrders, totalMovements] = await Promise.all([
+            this.prisma.order.count({ where }),
+            this.prisma.inventoryTransaction.count({ where })
+        ]);
+
         const totalSalesAgg = await this.prisma.order.aggregate({
             where,
             _sum: { total: true }
@@ -146,7 +158,15 @@ export class ReportsService {
         // Calculate Average Order Value
         const aov = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-        // Count Low Stock Products
+        // Combine for "Volume" or "Transactions Today"
+        const dailyVolume = totalOrders + totalMovements;
+
+        // Count Total Products (this is overall, not filtered by date)
+        const productsCount = await this.prisma.product.count({
+            where: { tenant_id: tenantId }
+        });
+
+        // Count Low Stock Products (overall)
         const lowStockCount = await this.prisma.product.count({
             where: {
                 tenant_id: tenantId,
@@ -154,18 +174,38 @@ export class ReportsService {
             }
         });
 
-        // New Clients (unique users who placed orders in period - approximation)
-        // Ideally we check user creation date, but let's stick to orders for now or just generic user count
+        // Total Customers (overall)
         const totalCustomers = await this.prisma.user.count({
-            where: { tenant_id: tenantId, role: { name: 'CLIENTE' } } // Assuming CLIENTE role exists, or just users
+            where: { tenant_id: tenantId }
+        });
+
+        // Calculate Total Profit for KPIs if needed
+        let totalProfit = 0;
+        const ordersWithItems = await this.prisma.order.findMany({
+            where,
+            include: {
+                order_items: {
+                    include: { product: { select: { price_cost: true } } }
+                }
+            }
+        });
+
+        ordersWithItems.forEach(order => {
+            let orderCost = 0;
+            order.order_items.forEach(item => {
+                orderCost += (Number(item.product?.price_cost || 0) * item.quantity);
+            });
+            totalProfit += (Number(order.total) - orderCost);
         });
 
         return {
             totalSales,
-            totalOrders,
+            totalOrders: dailyVolume, // Showing total transactions volume
             averageOrderValue: aov,
             lowStockCount,
-            totalCustomers // Total registered customers
+            totalCustomers,
+            productsCount,
+            totalProfit
         };
     }
 
@@ -175,43 +215,70 @@ export class ReportsService {
             where.created_at = { gte: startDate, lte: endDate };
         }
 
-        const orders = await this.prisma.order.findMany({
-            where,
-            select: {
-                created_at: true,
-                total: true,
-                order_items: {
-                    select: {
-                        unit_price: true,
-                        quantity: true,
-                        product: { select: { price_cost: true } }
+        // Fetch Orders and InventoryTransactions in parallel
+        const [orders, movements] = await Promise.all([
+            this.prisma.order.findMany({
+                where,
+                select: {
+                    created_at: true,
+                    total: true,
+                    order_items: {
+                        select: {
+                            quantity: true,
+                            unit_price: true,
+                            product: { select: { price_cost: true } }
+                        }
                     }
-                }
-            },
-            orderBy: { created_at: 'asc' }
-        });
+                },
+                orderBy: { created_at: 'asc' }
+            }),
+            this.prisma.inventoryTransaction.findMany({
+                where,
+                select: { created_at: true, type: true },
+                orderBy: { created_at: 'asc' }
+            })
+        ]);
 
-        // Group by day
-        const salesByDay = new Map<string, { date: Date, orderCount: number, totalSales: number, profit: number }>();
+        const combinedByDay = new Map<string, {
+            date: string,
+            orderCount: number,
+            transactionCount: number,
+            totalVolume: number,
+            totalSales: number,
+            profit: number
+        }>();
 
+        // Process Orders
         orders.forEach(order => {
             const dateKey = order.created_at.toISOString().split('T')[0];
-            if (!salesByDay.has(dateKey)) {
-                salesByDay.set(dateKey, { date: order.created_at, orderCount: 0, totalSales: 0, profit: 0 });
+            if (!combinedByDay.has(dateKey)) {
+                combinedByDay.set(dateKey, { date: dateKey, orderCount: 0, transactionCount: 0, totalVolume: 0, totalSales: 0, profit: 0 });
             }
-            const entry = salesByDay.get(dateKey)!;
+            const entry = combinedByDay.get(dateKey)!;
             entry.orderCount++;
             entry.totalSales += Number(order.total);
+            entry.totalVolume++;
 
-            // Calculate profit (Sale - Cost)
+            // Calculate profit for this order
             let orderCost = 0;
             order.order_items.forEach(item => {
-                orderCost += Number(item.product.price_cost) * item.quantity;
+                orderCost += (Number(item.product?.price_cost || 0) * item.quantity);
             });
-            entry.profit += Number(order.total) - orderCost;
+            entry.profit += (Number(order.total) - orderCost);
         });
 
-        return Array.from(salesByDay.values());
+        // Process Inventory Transactions
+        movements.forEach(move => {
+            const dateKey = move.created_at.toISOString().split('T')[0];
+            if (!combinedByDay.has(dateKey)) {
+                combinedByDay.set(dateKey, { date: dateKey, orderCount: 0, transactionCount: 0, totalVolume: 0, totalSales: 0, profit: 0 });
+            }
+            const entry = combinedByDay.get(dateKey)!;
+            entry.transactionCount++;
+            entry.totalVolume++;
+        });
+
+        return Array.from(combinedByDay.values());
     }
 
     async getTopProducts(tenantId: number, limit: number, startDate?: Date, endDate?: Date) {
