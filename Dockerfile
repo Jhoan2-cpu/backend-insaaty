@@ -19,7 +19,7 @@ COPY . .
 # Compilar NestJS asegurando que no haya archivos viejos
 RUN rm -rf dist && npm run build
 
-# Verificar que el archivo compilado existe (fallará la construcción si no está)
+# Verificar que el archivo compilado existe en la raíz de dist (fallará si Nest crea carpetas extra)
 RUN ls -la dist/ && test -f dist/main.js
 
 # Etapa 2: Ejecución
