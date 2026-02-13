@@ -22,7 +22,7 @@ import { join } from 'path';
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
+      serveRoot: '/api/uploads',
       serveStaticOptions: { index: false },
     }),
     AuthModule, TenantsModule, UsersModule, ProductsModule, InventoryModule, DashboardModule, OrdersModule, ReportsModule, SuppliersModule],
