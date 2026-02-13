@@ -1,0 +1,13 @@
+Starting debug...
+Testing pdfmake initialization...
+Fonts exist? true
+Attempt 1: require("pdfmake")
+Type: object
+Keys: virtualfs,urlResolver
+Not a function.
+Attempt 2: require("pdfmake/src/printer")
+Fail 2: Cannot find module 'C:\Users\anton\Documents\GitHub\para Portfolio\inventory-saas\backend-insaaty\node_modules\pdfmake\src\PDFDocument' imported from C:\Users\anton\Documents\GitHub\para Portfolio\inventory-saas\backend-insaaty\node_modules\pdfmake\src\printer.js
+Attempt 3: require("pdfmake/js/Printer")
+Fail 3: PdfPrinter3 is not a constructor
+Attempt 4: require("pdfmake").default
+Fail 4: PdfPrinter4 is not a constructor

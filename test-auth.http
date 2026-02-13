@@ -1,0 +1,42 @@
+### Registro de Usuario
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{
+  "business_name": "Test Company Inc",
+  "full_name": "John Doe",
+  "email": "johndoe@testcompany.com",
+  "password": "securepass123"
+}
+
+###
+
+### Login
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "johndoe@testcompany.com",
+  "password": "securepass123"
+}
+
+###
+
+### Refresh Token
+POST http://localhost:3000/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{{refresh_token}}"
+}
+
+###
+
+### Logout
+POST http://localhost:3000/auth/logout
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "refresh_token": "{{refresh_token}}"
+}

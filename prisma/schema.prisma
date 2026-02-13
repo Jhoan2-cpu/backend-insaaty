@@ -8,19 +8,207 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int       @id @default(autoincrement())
+  tenant_id     Int
+  role_id       Int
+  email         String    @unique
+  password_hash String
+  full_name     String
+  bio           String?
+  avatar_url    String?
+  last_login    DateTime?
   // Puedes agregar relaciones aquí
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id])
+  role          Role      @relation(fields: [role_id], references: [id])
+
+  inventory_transactions InventoryTransaction[]
+  refreshTokens          RefreshToken[]
+  orders                 Order[]
+  reports                Report[]
+
+  @@map("users")
 }
 
-model Item {
-  id        Int      @id @default(autoincrement())
-  name      String
-  price     Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
+  token_hash String
+  user_id    Int
+  is_revoked Boolean  @default(false)
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model Tenant {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  plan_type PlanType  @default(FREE)
+  is_active Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  products  Product[]
+
+  users                  User[]
+  inventory_transactions InventoryTransaction[]
+  orders                 Order[]
+  suppliers              Supplier[]
+  reports                Report[]
+
+  @@map("tenants")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  users       User[]
+
+  @@map("roles")
+}
+
+model Product {
+  id                     Int                    @id @default(autoincrement())
+  tenant_id              Int
+  sku                    String
+  name                   String
+  description            String?
+  price_cost             Decimal                @db.Decimal(10, 2)
+  price_sale             Decimal                @db.Decimal(10, 2)
+  min_stock              Int                    @default(0)
+  current_stock          Int                    @default(0)
+  supplier_id            Int?
+  created_at             DateTime               @default(now())
+  updated_at             DateTime               @updatedAt
   // Puedes agregar relaciones aquí
+  tenant                 Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  supplier               Supplier?              @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
+  inventory_transactions InventoryTransaction[]
+  order_items            OrderItem[]
+
+  @@unique([tenant_id, sku]) // El SKU puede repetirse en diferentes tenants, pero no en el mismo.
+  @@index([supplier_id])
+  @@map("products")
+}
+
+model InventoryTransaction {
+  id          Int             @id @default(autoincrement())
+  tenant_id   Int
+  product_id  Int
+  user_id     Int
+  type        TransactionType //Uso de Enum (In, Out, Adjustment)
+  quantity    Int
+  reason      String?
+  created_at  DateTime        @default(now())
+  // Puedes agregar relaciones aquí
+  tenant      Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [product_id], references: [id])
+  user        User            @relation(fields: [user_id], references: [id])
+  supplier_id Int?
+  supplier    Supplier?       @relation(fields: [supplier_id], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+// TYPESCRIPT ENUMS
+enum TransactionType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  order_number String      @unique
+  tenant_id    Int
+  user_id      Int
+  customer_name String?
+  tenant       Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [user_id], references: [id])
+  status       OrderStatus @default(PENDING)
+  total        Decimal     @db.Decimal(10, 2)
+  notes        String?     @db.Text
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+  order_items  OrderItem[]
+
+  @@index([tenant_id])
+  @@index([user_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  order_id   Int
+  order      Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product_id Int
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  quantity   Int
+  unit_price Decimal  @db.Decimal(10, 2)
+  subtotal   Decimal  @db.Decimal(10, 2)
+  created_at DateTime @default(now())
+
+  @@index([order_id])
+  @@index([product_id])
+  @@map("order_items")
+}
+
+model Supplier {
+  id             Int      @id @default(autoincrement())
+  tenant_id      Int
+  name           String
+  contact_person String?
+  email          String?
+  phone          String?
+  address        String?
+  website        String?
+  notes          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  tenant                Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  products              Product[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@index([tenant_id])
+  @@map("suppliers")
+}
+
+enum ReportType {
+  SALES
+  INVENTORY
+  MOVEMENTS
+}
+
+model Report {
+  id         Int        @id @default(autoincrement())
+  tenant_id  Int
+  user_id    Int
+  type       ReportType
+  url        String
+  created_at DateTime   @default(now())
+
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
+  @@map("reports")
 }

@@ -1,0 +1,74 @@
+### Crear Productos de Prueba
+POST http://localhost:3000/products
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "sku": "PRD-001",
+  "name": "Wireless Mouse",
+  "description": "Ergonomic wireless mouse",
+  "price_cost": 12.00,
+  "price_sale": 25.99,
+  "min_stock": 10,
+  "current_stock": 3
+}
+
+###
+POST http://localhost:3000/products
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "sku": "PRD-002",
+  "name": "Mechanical Keyboard",
+  "description": "RGB mechanical keyboard",
+  "price_cost": 45.00,
+  "price_sale": 89.99,
+  "min_stock": 20,
+  "current_stock": 145
+}
+
+###
+POST http://localhost:3000/products
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "sku": "PRD-003",
+  "name": "USB-C Hub (7-in-1)",
+  "description": "7 port USB-C hub",
+  "price_cost": 15.50,
+  "price_sale": 32.00,
+  "min_stock": 15,
+  "current_stock": 0
+}
+
+###
+POST http://localhost:3000/products
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "sku": "PRD-004",
+  "name": "Desk Lamp",
+  "description": "LED desk lamp",
+  "price_cost": 22.00,
+  "price_sale": 49.99,
+  "min_stock": 10,
+  "current_stock": 8
+}
+
+###
+POST http://localhost:3000/products
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "sku": "PRD-005",
+  "name": "Smart Watch Series 5",
+  "description": "Smart watch with fitness tracking",
+  "price_cost": 150.00,
+  "price_sale": 299.99,
+  "min_stock": 50,
+  "current_stock": 320
+}

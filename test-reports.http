@@ -1,0 +1,23 @@
+### Test Reports Endpoints
+
+# Get KPIs
+GET http://localhost:3000/reports/kpis
+Authorization: Bearer {{token}}
+
+###
+
+# Get Sales Report
+GET http://localhost:3000/reports/sales?startDate=2026-01-01&endDate=2026-12-31
+Authorization: Bearer {{token}}
+
+###
+
+# Get Top Products
+GET http://localhost:3000/reports/top-products?limit=10
+Authorization: Bearer {{token}}
+
+###
+
+# Get Low Stock Products
+GET http://localhost:3000/reports/low-stock
+Authorization: Bearer {{token}}
