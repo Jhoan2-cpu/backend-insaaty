@@ -1,0 +1,68 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const client_1 = require("@prisma/client");
+const prisma = new client_1.PrismaClient();
+const passwordHash = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8m5r6h6bZ8b6Z8b6Z8b6Z8b6Z8b6Z8b6';
+async function main() {
+    const tenantsData = [
+        { name: 'Tenant 1', plan_type: client_1.PlanType.FREE, is_active: true },
+        { name: 'Tenant 2', plan_type: client_1.PlanType.BASIC, is_active: true },
+        { name: 'Tenant 3', plan_type: client_1.PlanType.PREMIUM, is_active: true },
+    ];
+    const tenants = [];
+    for (const data of tenantsData) {
+        const tenant = await prisma.tenant.upsert({
+            where: { name: data.name },
+            update: {},
+            create: data,
+        });
+        tenants.push(tenant);
+    }
+    for (const tenant of tenants) {
+        const productsCount = await prisma.product.count({ where: { tenant_id: tenant.id } });
+        if (productsCount === 0) {
+            await prisma.product.createMany({
+                data: [
+                    { tenant_id: tenant.id, sku: `SKU${tenant.id}01`, name: `Producto A T${tenant.id}`, price_cost: 10, price_sale: 15, min_stock: 5 },
+                    { tenant_id: tenant.id, sku: `SKU${tenant.id}02`, name: `Producto B T${tenant.id}`, price_cost: 20, price_sale: 30, min_stock: 3 }
+                ],
+                skipDuplicates: true,
+            });
+        }
+    }
+    await prisma.role.createMany({
+        data: [
+            { name: 'ADMIN', description: 'Administrator role' },
+            { name: 'MANAGER', description: 'Manager role' },
+            { name: 'EMPLOYEE', description: 'Employee role' },
+        ],
+        skipDuplicates: true,
+    });
+    const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
+    const managerRole = await prisma.role.findUnique({ where: { name: 'MANAGER' } });
+    const employeeRole = await prisma.role.findUnique({ where: { name: 'EMPLOYEE' } });
+    const usersData = [];
+    for (let i = 1; i <= 20; i++) {
+        const tenant = tenants[(i - 1) % tenants.length];
+        let role_id = adminRole?.id;
+        if (i % 3 === 2)
+            role_id = managerRole?.id;
+        if (i % 3 === 0)
+            role_id = employeeRole?.id;
+        usersData.push({
+            email: `user${i}@tenant${tenant.id}.com`,
+            password_hash: passwordHash,
+            full_name: `User ${i} Tenant ${tenant.id}`,
+            tenant_id: tenant.id,
+            role_id: role_id,
+        });
+    }
+    await prisma.user.createMany({
+        data: usersData,
+        skipDuplicates: true,
+    });
+}
+main()
+    .catch(e => console.error(e))
+    .finally(() => prisma.$disconnect());
+//# sourceMappingURL=seed.js.map
