@@ -10,12 +10,17 @@ COPY prisma ./prisma/
 # Instalar dependencias
 RUN npm install
 
-# Copiar el resto del código
+# Generar cliente de Prisma
+RUN npx prisma generate
+
+# Copiar el resto del código (esto debería romper la caché si algo cambió)
 COPY . .
 
-# Generar cliente de Prisma y compilar NestJS
-RUN npx prisma generate
-RUN npm run build
+# Compilar NestJS asegurando que no haya archivos viejos
+RUN rm -rf dist && npm run build
+
+# Verificar que el archivo compilado existe (fallará la construcción si no está)
+RUN ls -la dist/ && test -f dist/main.js
 
 # Etapa 2: Ejecución
 FROM node:20-alpine
