@@ -83,6 +83,31 @@ export class UsersService {
     return await this.prisma.user.findUnique({ where: { id } });
   }
 
+  async findOneWithRelations(id: number) {
+    return await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role_id: true,
+        tenant_id: true,
+        last_login: true,
+        tenant: {
+          select: {
+            name: true,
+            plan_type: true,
+          },
+        },
+        role: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
   async update(id: number, updateUserDto: UpdateUserDto) {
     // Mapear campos del DTO a campos de la base de datos
     const dataToUpdate: any = {};

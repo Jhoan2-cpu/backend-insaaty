@@ -26,8 +26,9 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Get('profile')
-  getProfile(@Request() req) {
-    return this.usersService.findOne(req.user.id);
+  async getProfile(@Request() req) {
+    const user = await this.usersService.findOneWithRelations(req.user.id);
+    return user;
   }
 
   @Patch('profile')
