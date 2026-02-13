@@ -37,31 +37,45 @@ export class ReportsService {
         console.log('PDF Fonts paths:', fonts);
 
         try {
-            // Try to instantiate directly from require('pdfmake')
-            this.printer = new PdfPrinter(fonts);
-            console.log('✅ PdfPrinter initialized successfully.');
+            // Correct import for pdfmake 0.3.x which uses ES modules transpiled to CommonJS
+            // The file js/Printer.js exports "default" as the class
+            const PrinterModule = require('pdfmake/js/Printer');
+            const Printer = PrinterModule.default || PrinterModule;
+            this.printer = new Printer(fonts);
+            console.log('✅ PdfPrinter initialized successfully (js/Printer).');
         } catch (error) {
-            console.error('⚠️ Error initializing PdfPrinter with default require:', error);
+            console.error('⚠️ Error initializing PdfPrinter with js/Printer:', error);
             try {
-                // Fallback: sometimes it's exported as default
-                const Printer = require('pdfmake/js/Printer');
-                this.printer = new Printer(fonts);
-                console.log('✅ PdfPrinter initialized successfully with fallback.');
+                // Fallback: try the default 'pdfmake' export (though analysis showed it might be an instance)
+                // Sometimes standard require('pdfmake') works in different environments
+                const Printer = require('pdfmake');
+                // If it's a constructor
+                if (typeof Printer === 'function') {
+                    this.printer = new Printer(fonts);
+                    console.log('✅ PdfPrinter initialized successfully (default pdfmake function).');
+                } else if (Printer.default) {
+                    this.printer = new Printer.default(fonts);
+                    console.log('✅ PdfPrinter initialized successfully (default pdfmake.default).');
+                } else {
+                    // It might be an instance (js/index.js exports new pdfmake())
+                    // If so, we can't use it as a Printer class.
+                    console.error('❌ CRITICAL: require("pdfmake") is not a constructor. It is type: ' + typeof Printer);
+                }
             } catch (fallbackError) {
                 console.error('❌ CRITICAL: Failed to initialize PdfPrinter via fallback:', fallbackError);
             }
         }
     }
-    // ... (rest of the file until createPdf) ...
+
     private createPdf(docDefinition: TDocumentDefinitions, type: 'SALES' | 'INVENTORY' | 'MOVEMENTS', tenantId: number, userId: number): Promise<string> {
         return new Promise((resolve, reject) => {
+            if (!this.printer) {
+                const error = new Error('PDF Printer Service not initialized. Check server logs for initialization errors.');
+                console.error(error);
+                return reject(error);
+            }
             try {
                 const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
-                console.log('📄 PDF Document created. Is it valid?', !!pdfDoc);
-                if (pdfDoc) {
-                    console.log('Keys:', Object.keys(pdfDoc));
-                    console.log('Has pipe?', typeof pdfDoc.pipe === 'function');
-                }
                 const fileName = `report-${type.toLowerCase()}-${Date.now()}.pdf`;
                 const filePath = path.join(__dirname, '../../..', 'uploads/reports', fileName);
 
