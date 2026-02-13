@@ -78,9 +78,11 @@ export class ReportsController {
             end.setHours(23, 59, 59, 999);
         }
 
-        const data = await this.reportsService.getSalesReport(req.user.tenantId, start, end);
+        const salesData = await this.reportsService.getSalesReport(req.user.tenantId, start, end);
+        const movementsData = await this.reportsService.getMovements(req.user.tenantId, start, end);
+
         const dateRange = `${start?.toLocaleDateString() || 'Inicio'} - ${end?.toLocaleDateString() || 'Fin'}`;
-        const url = await this.reportsService.generateSalesReport(req.user.tenantId, req.user.id, data, dateRange);
+        const url = await this.reportsService.generateSalesReport(req.user.tenantId, req.user.id, salesData, movementsData, dateRange);
         return { url };
     }
 

@@ -282,34 +282,124 @@ export class ReportsService {
         });
     }
 
-    async generateSalesReport(tenantId: number, userId: number, data: any[], dateRange: string) {
-        const tableBody: any[] = [
+    async generateSalesReport(tenantId: number, userId: number, salesData: any[], movementsData: any[], dateRange: string) {
+
+        // --- 1. Calculate KPIs ---
+        const totalSales = salesData.reduce((acc, curr) => acc + curr.totalSales, 0);
+        const totalProfit = salesData.reduce((acc, curr) => acc + curr.profit, 0);
+
+        // Filter 'IN' movements and positive 'ADJUSTMENT' (Restocks/Purchases)
+        const investmentMovements = (movementsData || []).filter(m => m.type === 'IN' || (m.type === 'ADJUSTMENT' && m.quantity > 0));
+        const totalInvestment = investmentMovements.reduce((acc, curr) => {
+            // Assuming cost is available in product.price_cost
+            const cost = curr.product?.price_cost ? Number(curr.product.price_cost) : 0;
+            return acc + (cost * curr.quantity);
+        }, 0);
+
+        const netBalance = totalSales - totalInvestment;
+
+        // --- 2. Build PDF Content ---
+        const content: any[] = [];
+
+        // Executive Summary Section
+        content.push({ text: 'Resumen Ejecutivo', style: 'sectionHeader', margin: [0, 10, 0, 10] });
+        content.push({
+            table: {
+                widths: ['*', '*', '*'],
+                body: [
+                    [
+                        { text: 'Ventas Totales', style: 'kpiLabel', alignment: 'center' },
+                        { text: 'Inversión en Stock', style: 'kpiLabel', alignment: 'center' },
+                        { text: 'Balance Neto', style: 'kpiLabel', alignment: 'center' }
+                    ],
+                    [
+                        { text: `$${totalSales.toFixed(2)}`, style: 'kpiValue', color: '#10b981', alignment: 'center' },
+                        { text: `$${totalInvestment.toFixed(2)}`, style: 'kpiValue', color: '#f59e0b', alignment: 'center' }, // Orange for investment
+                        { text: `$${netBalance.toFixed(2)}`, style: 'kpiValue', color: netBalance >= 0 ? '#10b981' : '#ef4444', alignment: 'center', bold: true }
+                    ]
+                ]
+            },
+            layout: 'noBorders',
+            margin: [0, 0, 0, 20]
+        });
+
+        // Sales Breakdown Section
+        content.push({ text: 'Detalle de Ventas', style: 'sectionHeader', margin: [0, 10, 0, 5] });
+        const salesTableBody = [
             [
                 { text: 'Fecha', style: 'tableHeader' },
                 { text: 'Pedidos', style: 'tableHeader', alignment: 'center' },
-                { text: 'Ventas', style: 'tableHeader', alignment: 'right' },
-                { text: 'Ganancia', style: 'tableHeader', alignment: 'right' }
+                { text: 'Monto', style: 'tableHeader', alignment: 'right' },
+                { text: 'Margen Est.', style: 'tableHeader', alignment: 'right' }
             ],
-            ...data.map(item => [
+            ...salesData.map(item => [
                 { text: new Date(item.date).toLocaleDateString(), style: 'tableCell' },
                 { text: item.orderCount, style: 'tableCell', alignment: 'center' },
                 { text: `$${item.totalSales.toFixed(2)}`, style: 'tableCell', alignment: 'right' },
                 { text: `$${item.profit.toFixed(2)}`, style: 'tableCell', alignment: 'right', color: item.profit >= 0 ? '#10b981' : '#ef4444' }
             ])
         ];
+        content.push({
+            table: {
+                headerRows: 1,
+                widths: ['*', 'auto', 'auto', 'auto'],
+                body: salesTableBody
+            },
+            layout: 'lightHorizontalLines',
+            margin: [0, 0, 0, 20]
+        });
 
-        // Calcular totales
-        const totalSales = data.reduce((acc, curr) => acc + curr.totalSales, 0);
-        const totalProfit = data.reduce((acc, curr) => acc + curr.profit, 0);
+        // Inventory Investments Section
+        if (investmentMovements.length > 0) {
+            content.push({ text: 'Inversión en Inventario (Entradas)', style: 'sectionHeader', margin: [0, 10, 0, 5] });
+            const investmentTableBody = [
+                [
+                    { text: 'Fecha', style: 'tableHeader' },
+                    { text: 'Producto', style: 'tableHeader' },
+                    { text: 'Cant.', style: 'tableHeader', alignment: 'center' },
+                    { text: 'Costo Unit.', style: 'tableHeader', alignment: 'right' },
+                    { text: 'Total', style: 'tableHeader', alignment: 'right' }
+                ],
+                ...investmentMovements.map(item => {
+                    const cost = item.product?.price_cost ? Number(item.product.price_cost) : 0;
+                    const total = cost * item.quantity;
+                    return [
+                        { text: new Date(item.created_at).toLocaleDateString(), style: 'tableCell' },
+                        { text: item.product?.name || 'Unknown', style: 'tableCell' },
+                        { text: item.quantity, style: 'tableCell', alignment: 'center' },
+                        { text: `$${cost.toFixed(2)}`, style: 'tableCell', alignment: 'right' },
+                        { text: `$${total.toFixed(2)}`, style: 'tableCell', alignment: 'right' }
+                    ];
+                })
+            ];
+            content.push({
+                table: {
+                    headerRows: 1,
+                    widths: ['*', '*', 'auto', 'auto', 'auto'],
+                    body: investmentTableBody
+                },
+                layout: 'lightHorizontalLines'
+            });
+        } else {
+            content.push({ text: 'No hubo movimientos de entrada de inventario en este periodo.', style: 'tableCell', italics: true, color: '#6b7280', margin: [0, 0, 0, 20] });
+        }
 
-        tableBody.push([
-            { text: 'TOTALES', style: 'tableHeader', colSpan: 2, alignment: 'right' },
-            {},
-            { text: `$${totalSales.toFixed(2)}`, style: 'tableHeader', alignment: 'right' },
-            { text: `$${totalProfit.toFixed(2)}`, style: 'tableHeader', alignment: 'right' }
-        ]);
 
-        const docDefinition = this.getCommonDocDefinition('Reporte de Ventas', dateRange, tableBody);
+        // Override common doc definition specifically for this report to handle multiple tables
+        const docDefinition = this.getCommonDocDefinition('Reporte de Desempeño Comercial', dateRange, [], '*');
+        // Replace the default table content with our custom content stack
+        // The common function puts a table at index 3 (Header, Line, Spacer, Table)
+        // We will replace elements starting from index 3 with our content
+        if (Array.isArray(docDefinition.content)) {
+            docDefinition.content.splice(3, 1, ...content);
+        }
+
+        // Add new styles
+        if (!docDefinition.styles) docDefinition.styles = {};
+        docDefinition.styles.sectionHeader = { fontSize: 14, bold: true, color: '#111827', margin: [0, 15, 0, 5] };
+        docDefinition.styles.kpiLabel = { fontSize: 10, color: '#6b7280', bold: true };
+        docDefinition.styles.kpiValue = { fontSize: 16, bold: true, margin: [0, 5, 0, 0] };
+
         return this.createPdf(docDefinition, 'SALES', tenantId, userId);
     }
 
@@ -399,7 +489,7 @@ export class ReportsService {
                 {
                     table: {
                         headerRows: 1,
-                        widths: widths === '*' ? Array(tableBody[0].length).fill('*') : widths,
+                        widths: widths === '*' ? (tableBody.length > 0 ? Array(tableBody[0].length).fill('*') : ['*']) : widths,
                         body: tableBody
                     },
                     layout: {
