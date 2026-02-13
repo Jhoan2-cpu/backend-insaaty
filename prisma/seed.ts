@@ -51,7 +51,7 @@ async function main() {
   const employeeRole = await prisma.role.findUnique({ where: { name: 'EMPLOYEE' } });
 
   // Usuarios: 20 usuarios distribuidos entre los 3 tenants y roles
-  const usersData: Omit<User, 'id' | 'last_login' | 'bio'>[] = [];
+  const usersData: Omit<User, 'id' | 'last_login' | 'bio' | 'avatar_url'>[] = [];
   for (let i = 1; i <= 20; i++) {
     const tenant = tenants[(i - 1) % tenants.length];
     // Alterna entre los roles

@@ -12,7 +12,14 @@ import {
   NotFoundException,
   ParseIntPipe,
   DefaultValuePipe,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { existsSync, unlinkSync, mkdirSync } from 'fs';
 
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -20,6 +27,12 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { Role } from '../auth/roles.enum';
 import { Roles } from '../auth/roles.decorator';
 import { Public } from '../auth/public.decorator';
+
+// Ensure uploads/avatars directory exists
+const avatarDir = join(process.cwd(), 'uploads', 'avatars');
+if (!existsSync(avatarDir)) {
+  mkdirSync(avatarDir, { recursive: true });
+}
 
 @Controller('users')
 export class UsersController {
@@ -33,11 +46,63 @@ export class UsersController {
 
   @Patch('profile')
   updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
-    // Evitar que cambien su propio tenant_id o role_id a menos que sean admin (lógica compleja, por ahora bloqueamos)
-    // Para simplificar, solo permitimos cambiar nombre, email, password
     delete updateUserDto.tenantId;
     delete updateUserDto.roleId;
     return this.usersService.update(req.user.id, updateUserDto);
+  }
+
+  @Post('profile/avatar')
+  @UseInterceptors(FileInterceptor('avatar', {
+    storage: diskStorage({
+      destination: avatarDir,
+      filename: (_req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = extname(file.originalname).toLowerCase();
+        cb(null, `avatar-${uniqueSuffix}${ext}`);
+      },
+    }),
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
+        cb(new BadRequestException('Only image files are allowed (jpeg, png, gif, webp)'), false);
+        return;
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  }))
+  async uploadAvatar(@Request() req, @UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Delete old avatar if exists
+    const currentUser: any = await this.usersService.findOne(req.user.id);
+    if (currentUser?.avatar_url) {
+      const oldPath = join(process.cwd(), currentUser.avatar_url);
+      if (existsSync(oldPath)) {
+        try { unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
+    }
+
+    // Save URL path relative to project root
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    await this.usersService.updateAvatarUrl(req.user.id, avatarUrl);
+
+    return { avatar_url: avatarUrl };
+  }
+
+  @Delete('profile/avatar')
+  async removeAvatar(@Request() req) {
+    const currentUser: any = await this.usersService.findOne(req.user.id);
+    if (currentUser?.avatar_url) {
+      const oldPath = join(process.cwd(), currentUser.avatar_url);
+      if (existsSync(oldPath)) {
+        try { unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
+    }
+
+    await this.usersService.updateAvatarUrl(req.user.id, null);
+    return { avatar_url: null };
   }
 
   @Public()

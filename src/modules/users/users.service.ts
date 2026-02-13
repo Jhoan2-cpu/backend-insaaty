@@ -84,13 +84,14 @@ export class UsersService {
   }
 
   async findOneWithRelations(id: number) {
-    return await this.prisma.user.findUnique({
+    return await (this.prisma.user as any).findUnique({
       where: { id },
       select: {
         id: true,
         email: true,
         full_name: true,
         bio: true,
+        avatar_url: true,
         role_id: true,
         tenant_id: true,
         last_login: true,
@@ -135,6 +136,13 @@ export class UsersService {
     return await this.prisma.user.update({
       where: { id },
       data: dataToUpdate,
+    });
+  }
+
+  async updateAvatarUrl(id: number, avatarUrl: string | null) {
+    return await (this.prisma.user as any).update({
+      where: { id },
+      data: { avatar_url: avatarUrl },
     });
   }
 

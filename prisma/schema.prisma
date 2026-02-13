@@ -15,6 +15,7 @@ model User {
   password_hash String
   full_name     String
   bio           String?
+  avatar_url    String?
   last_login    DateTime?
   // Puedes agregar relaciones aquí
   tenant        Tenant    @relation(fields: [tenant_id], references: [id])
