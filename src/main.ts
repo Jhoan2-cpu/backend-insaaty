@@ -11,6 +11,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Configurar prefijo global para la API
+  app.setGlobalPrefix('api');
+
   // Habilitar validación global con class-validator
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,           // Elimina propiedades no definidas en el DTO
