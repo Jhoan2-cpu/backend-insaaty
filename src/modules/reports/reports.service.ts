@@ -520,12 +520,43 @@ export class ReportsService {
         return this.createPdf(docDefinition, 'MOVEMENTS', tenantId, userId);
     }
 
-    async getReportHistory(tenantId: number) {
-        return this.prisma.report.findMany({
-            where: { tenant_id: tenantId },
-            orderBy: { created_at: 'desc' },
-            include: { user: { select: { full_name: true } } }
-        });
+    async getReportHistory(tenantId: number, page: number, limit: number, search?: string, type?: string) {
+        const where: any = { tenant_id: tenantId };
+
+        if (search) {
+            where.OR = [
+                { id: !isNaN(Number(search)) ? Number(search) : undefined },
+                // { type: { contains: search, mode: 'insensitive' } }, // Enum filtering is strict, handle separately if needed
+                { user: { full_name: { contains: search, mode: 'insensitive' } } }
+            ];
+            // Remove undefined id filter if search is not a number
+            where.OR = where.OR.filter(condition => condition.id !== undefined || condition.user);
+            if (where.OR.length === 0) delete where.OR;
+        }
+
+        if (type && type !== 'ALL') {
+            // Validate if type exists in enum if strictly required, or let Prisma handle it (might throw if invalid enum)
+            where.type = type;
+        }
+
+        const [data, total] = await Promise.all([
+            this.prisma.report.findMany({
+                where,
+                skip: (page - 1) * limit,
+                take: limit,
+                orderBy: { created_at: 'desc' },
+                include: { user: { select: { full_name: true } } }
+            }),
+            this.prisma.report.count({ where })
+        ]);
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        };
     }
 
     private getCommonDocDefinition(title: string, dateRange: string, tableBody: any[], widths: any = '*'): TDocumentDefinitions {
