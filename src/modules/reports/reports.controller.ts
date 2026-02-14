@@ -123,7 +123,13 @@ export class ReportsController {
         return { url };
     }
     @Get('history')
-    async getReportHistory(@Request() req) {
-        return this.reportsService.getReportHistory(req.user.tenantId);
+    async getReportHistory(
+        @Request() req,
+        @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+        @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+        @Query('search') search?: string,
+        @Query('type') type?: string,
+    ) {
+        return this.reportsService.getReportHistory(req.user.tenantId, page, limit, search, type);
     }
 }
